@@ -65,3 +65,4 @@ export function RoleGuard({ children, allowedRoles = ['admin'] }: RoleGuardProps
 
   return <>{children}</>
 }
+

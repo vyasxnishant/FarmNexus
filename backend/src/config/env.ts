@@ -10,10 +10,15 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') })
 export const config = {
   port: Number(process.env.PORT) || 5000,
   nodeEnv: process.env.NODE_ENV || 'development',
-  dataGovInApiKey: process.env.DATA_GOV_IN_API_KEY || '',
+  jwtSecret: process.env.JWT_SECRET || 'farmnexus_default_jwt_secret_2026',
   databaseUrl: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/farmnexus',
-  cacheTtlMinutes: Number(process.env.CACHE_TTL_MINUTES) || 30,
   corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  cacheTtlMinutes: Number(process.env.CACHE_TTL_MINUTES) || 30,
+  dataGovInApiKey: process.env.DATA_GOV_IN_API_KEY || '',
+  agmarknetApiKey: process.env.AGMARKNET_API_KEY || '',
+  enamApiKey: process.env.ENAM_API_KEY || '',
+  weatherApiKey: process.env.WEATHER_API_KEY || '',
+  paymentSecretKey: process.env.PAYMENT_SECRET_KEY || '',
+  paymentWebhookSecret: process.env.PAYMENT_WEBHOOK_SECRET || '',
   agmarknetEndpoint: 'https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070',
 }
-

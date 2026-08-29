@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
+import { authApi, lotApi, marketPriceApi, offerApi, transactionApi, adminApi, paymentApi } from '../services/apiServices'
 
 export type CropType = 'Wheat (Sharbati)' | 'Basmati Rice' | 'Soybean' | 'Chana (Gram)' | 'Mustard' | 'Maize' | string
 export type QualityGrade = 'Grade A (Export)' | 'Grade A' | 'Grade B' | 'Grade C'
@@ -1209,6 +1210,66 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     setBuyerRequirement(prev => ({ ...prev, ...req }))
   }
 
+  // Live Backend Data Synchronization
+  useEffect(() => {
+    async function syncWithBackend() {
+      try {
+        // Ensure authentication token exists
+        let token = localStorage.getItem('farmnexus_jwt_token')
+        if (!token) {
+          try {
+            const loginRes = await authApi.login('ramesh@farmnexus.in', 'password123')
+            if (loginRes.data?.token) {
+              localStorage.setItem('farmnexus_jwt_token', loginRes.data.token)
+              token = loginRes.data.token
+            }
+          } catch (e) {
+            // Auto-login fallback
+          }
+        }
+
+        // Fetch fresh lots from PostgreSQL/Express backend
+        const lotsRes = await lotApi.getAll()
+        if (lotsRes.data && Array.isArray(lotsRes.data) && lotsRes.data.length > 0) {
+          // Map backend lot models to frontend format
+          const mappedLots: CropLot[] = lotsRes.data.map((l: any) => ({
+            id: l.id,
+            crop: l.crop,
+            cropHi: l.crop_hi,
+            category: l.category,
+            variety: l.variety,
+            quantityQtl: l.quantity_qtl,
+            unit: l.unit || 'Quintal',
+            grade: l.grade,
+            visualQuality: l.quality?.visual_quality || 'Good',
+            damageLevel: l.quality?.damage_level || 'None',
+            grainSize: l.quality?.grain_size || 'Uniform Bold',
+            moisturePercent: l.quality?.moisture_percent,
+            foreignMatterPercent: l.quality?.foreign_matter_percent,
+            damagedGrainPercent: l.quality?.damaged_grain_percent,
+            qualityNotes: l.quality?.notes,
+            expectedPrice: l.expected_price,
+            minAcceptablePrice: l.min_acceptable_price,
+            marketReferencePrice: l.market_reference_price,
+            harvestDate: 'May 2026',
+            location: l.location,
+            pickupLocation: l.pickup_location,
+            status: l.status,
+            createdAt: 'May 2026',
+            matchedBuyersCount: l.active_offers_count ? l.active_offers_count + 3 : 4,
+            activeOffersCount: l.active_offers_count || 0,
+            highestOffer: l.highest_offer || l.expected_price,
+          }))
+          setLots(mappedLots)
+        }
+      } catch (err) {
+        console.warn('[DashboardContext] Backend sync silent fallback active', err)
+      }
+    }
+
+    syncWithBackend()
+  }, [])
+
   const [isListModalOpen, setIsListModalOpen] = useState(false)
   const [counterModalOffer, setCounterModalOffer] = useState<Offer | null>(null)
 
@@ -1435,6 +1496,15 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
 
     setOffers(prev => [newOffer, ...prev])
 
+    // Dispatch to backend API
+    offerApi.create({
+      lot_id: offerData.lotId,
+      offered_price: offerData.offeredPrice,
+      quantity_qtl: offerData.quantityQtl,
+      payment_terms: offerData.paymentTerms,
+      message: offerData.message,
+    }).catch(e => console.warn('[BackendSync] offerApi.create fallback', e))
+
     // Update lot activeOffersCount and highestOffer
     setLots(prev =>
       prev.map(l => {
@@ -1483,6 +1553,32 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       isLocalPrototype: true,
     }
     setLots(prev => [newLot, ...prev])
+
+    // Dispatch to backend API
+    lotApi.create({
+      crop: lotData.crop,
+      crop_hi: lotData.cropHi,
+      category: lotData.category,
+      variety: lotData.variety,
+      quantity_qtl: lotData.quantityQtl,
+      unit: lotData.unit,
+      grade: lotData.grade,
+      expected_price: lotData.expectedPrice,
+      min_acceptable_price: lotData.minAcceptablePrice,
+      market_reference_price: lotData.marketReferencePrice,
+      location: lotData.location,
+      pickup_location: lotData.pickupLocation,
+      status: lotData.status,
+      quality: {
+        grade: lotData.grade,
+        visual_quality: lotData.visualQuality,
+        damage_level: lotData.damageLevel,
+        grain_size: lotData.grainSize,
+        moisture_percent: lotData.moisturePercent,
+        foreign_matter_percent: lotData.foreignMatterPercent,
+        notes: lotData.qualityNotes,
+      },
+    }).catch(e => console.warn('[BackendSync] lotApi.create fallback', e))
     
     // Add notification
     const notif: NotificationItem = {
@@ -1505,6 +1601,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     setLots(prev =>
       prev.map(lot => (lot.id === lotId ? { ...lot, ...data } : lot))
     )
+    lotApi.update(lotId, data).catch(e => console.warn('[BackendSync] lotApi.update fallback', e))
   }
 
   const publishDraftLot = (lotId: string) => {
@@ -1519,6 +1616,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           : lot
       )
     )
+    lotApi.update(lotId, { status: 'Active' as any }).catch(e => console.warn('[BackendSync] publishDraftLot fallback', e))
     const notif: NotificationItem = {
       id: `NOTIF-${Date.now()}`,
       type: 'system',
@@ -1534,13 +1632,16 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   }
 
   const pauseLot = (lotId: string) => {
+    const lot = lots.find(l => l.id === lotId)
+    const newStatus: LotStatus = lot?.status === 'Paused' ? 'Active' : 'Paused'
     setLots(prev =>
-      prev.map(lot =>
-        lot.id === lotId
-          ? { ...lot, status: lot.status === 'Paused' ? 'Active' : 'Paused' }
-          : lot
+      prev.map(l =>
+        l.id === lotId
+          ? { ...l, status: newStatus }
+          : l
       )
     )
+    lotApi.update(lotId, { status: newStatus as any }).catch(e => console.warn('[BackendSync] pauseLot fallback', e))
   }
 
   const getLotById = (lotId: string): CropLot | undefined => {
@@ -1549,15 +1650,20 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
 
   const updateLotStatus = (lotId: string, status: LotStatus) => {
     setLots(prev => prev.map(lot => (lot.id === lotId ? { ...lot, status } : lot)))
+    lotApi.update(lotId, { status: status as any }).catch(e => console.warn('[BackendSync] updateLotStatus fallback', e))
   }
 
   const deleteLot = (lotId: string) => {
     setLots(prev => prev.filter(lot => lot.id !== lotId))
+    lotApi.delete(lotId).catch(e => console.warn('[BackendSync] deleteLot fallback', e))
   }
 
   const acceptOffer = (offerId: string) => {
     const targetOffer = offers.find(o => o.id === offerId)
     if (!targetOffer) return
+
+    // Backend API dispatch
+    offerApi.accept(offerId).catch(e => console.warn('[BackendSync] offerApi.accept fallback', e))
 
     // Update target offer to Accepted and reject competing offers for same lot
     setOffers(prev =>
@@ -1640,12 +1746,14 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
 
   const rejectOffer = (offerId: string) => {
     setOffers(prev => prev.map(o => (o.id === offerId ? { ...o, status: 'Rejected' } : o)))
+    offerApi.reject(offerId).catch(e => console.warn('[BackendSync] offerApi.reject fallback', e))
   }
 
   const counterOffer = (offerId: string, counterPrice: number) => {
     setOffers(prev =>
       prev.map(o => (o.id === offerId ? { ...o, status: 'Countered', counterPrice } : o))
     )
+    offerApi.counter(offerId, counterPrice).catch(e => console.warn('[BackendSync] offerApi.counter fallback', e))
 
     const notif: NotificationItem = {
       id: `NOTIF-${Date.now()}`,
