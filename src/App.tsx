@@ -23,6 +23,19 @@ import { BuyerBrowseLotsView } from './components/dashboard/views/BuyerBrowseLot
 import { BuyerLotDetailsView } from './components/dashboard/views/BuyerLotDetailsView'
 import { BuyerOffersView } from './components/dashboard/views/BuyerOffersView'
 
+// Admin Views
+import { RoleGuard } from './components/dashboard/admin/RoleGuard'
+import { AdminDashboardView } from './components/dashboard/admin/AdminDashboardView'
+import { AdminUsersView } from './components/dashboard/admin/AdminUsersView'
+import { AdminFarmersView } from './components/dashboard/admin/AdminFarmersView'
+import { AdminBuyersView } from './components/dashboard/admin/AdminBuyersView'
+import { AdminLotsView } from './components/dashboard/admin/AdminLotsView'
+import { AdminMarketPricesView } from './components/dashboard/admin/AdminMarketPricesView'
+import { AdminOffersView } from './components/dashboard/admin/AdminOffersView'
+import { AdminTransactionsView } from './components/dashboard/admin/AdminTransactionsView'
+import { AdminPaymentsView } from './components/dashboard/admin/AdminPaymentsView'
+import { AdminAuditLogsView } from './components/dashboard/admin/AdminAuditLogsView'
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -60,6 +73,21 @@ export default function App() {
             <Route path="offers" element={<BuyerOffersView />} />
             <Route path="transactions" element={<TransactionsView isBuyer />} />
             <Route path="transactions/:transactionId" element={<TransactionDetailsView />} />
+          </Route>
+
+          {/* Authenticated Admin Control Portal */}
+          <Route path="/admin" element={<DashboardLayout />}>
+            <Route index element={<Navigate to="/admin/dashboard" replace />} />
+            <Route path="dashboard" element={<RoleGuard><AdminDashboardView /></RoleGuard>} />
+            <Route path="users" element={<RoleGuard><AdminUsersView /></RoleGuard>} />
+            <Route path="farmers" element={<RoleGuard><AdminFarmersView /></RoleGuard>} />
+            <Route path="buyers" element={<RoleGuard><AdminBuyersView /></RoleGuard>} />
+            <Route path="lots" element={<RoleGuard><AdminLotsView /></RoleGuard>} />
+            <Route path="market-prices" element={<RoleGuard><AdminMarketPricesView /></RoleGuard>} />
+            <Route path="offers" element={<RoleGuard><AdminOffersView /></RoleGuard>} />
+            <Route path="transactions" element={<RoleGuard><AdminTransactionsView /></RoleGuard>} />
+            <Route path="payments" element={<RoleGuard><AdminPaymentsView /></RoleGuard>} />
+            <Route path="logs" element={<RoleGuard><AdminAuditLogsView /></RoleGuard>} />
           </Route>
 
           {/* Fallback to home */}

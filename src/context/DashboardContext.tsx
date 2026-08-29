@@ -5,7 +5,7 @@ export type QualityGrade = 'Grade A (Export)' | 'Grade A' | 'Grade B' | 'Grade C
 export type VisualQuality = 'Excellent' | 'Good' | 'Average' | 'Poor'
 export type DamageLevel = 'None' | 'Low' | 'Medium' | 'High'
 export type GrainSize = 'Uniform Bold' | 'Medium' | 'Small / Mixed'
-export type LotStatus = 'Active' | 'Draft' | 'Under Offer' | 'Sold' | 'Expired' | 'Paused'
+export type LotStatus = 'Active' | 'Draft' | 'Under Offer' | 'Sold' | 'Expired' | 'Paused' | 'Under Review'
 export type PaymentStatus = 'Pending' | 'Processing' | 'Paid' | 'Delayed'
 export type QuantityUnit = 'Quintal' | 'Kg' | 'Tonne'
 
@@ -231,10 +231,42 @@ export interface MatchScoreResult {
   isHighMatch: boolean
 }
 
+export interface UserRecord {
+  id: string
+  name: string
+  email: string
+  phone: string
+  userType: 'Farmer' | 'Buyer' | 'Admin'
+  location: string
+  district: string
+  state: string
+  registeredDate: string
+  status: 'Active' | 'Suspended' | 'Pending Verification'
+  kycVerified: boolean
+  organization?: string
+  lotsCount?: number
+  transactionsCount?: number
+  totalVolumeRs?: number
+}
+
+export interface AuditLog {
+  id: string
+  action: string
+  adminUser: string
+  targetType: 'User' | 'Farmer' | 'Buyer' | 'Lot' | 'MarketPrice' | 'Transaction' | 'Offer' | 'Payment'
+  targetId: string
+  timestamp: string
+  details: string
+}
+
+export type UserRole = 'farmer' | 'buyer' | 'admin'
+
 interface DashboardContextType {
   lang: 'en' | 'hi'
   setLang: (lang: 'en' | 'hi') => void
   toggleLang: () => void
+  userRole: UserRole
+  setUserRole: (role: UserRole) => void
   profile: FarmerProfile
   buyerProfile: BuyerProfile
   buyerRequirement: BuyerRequirement
@@ -246,6 +278,7 @@ interface DashboardContextType {
   deleteLot: (lotId: string) => void
   publishDraftLot: (lotId: string) => void
   pauseLot: (lotId: string) => void
+  flagLot: (lotId: string, reason: string) => void
   getLotById: (lotId: string) => CropLot | undefined
   offers: Offer[]
   acceptOffer: (offerId: string) => void
@@ -273,10 +306,18 @@ interface DashboardContextType {
     transactionId: string,
     newStatus: TransactionLifecycleStatus
   ) => void
+  users: UserRecord[]
+  updateUserStatus: (userId: string, status: UserRecord['status']) => void
+  verifyUser: (userId: string) => void
+  auditLogs: AuditLog[]
+  addAuditLog: (action: string, targetType: AuditLog['targetType'], targetId: string, details: string) => void
   notifications: NotificationItem[]
   markNotificationAsRead: (id: string) => void
   markAllNotificationsAsRead: () => void
   marketData: MarketPriceData[]
+  addMarketPriceRecord: (record: Omit<MarketPriceData, 'sparkline'>) => void
+  updateMarketPriceRecord: (mandi: string, crop: string, data: Partial<MarketPriceData>) => void
+  deleteMarketPriceRecord: (mandi: string, crop: string) => void
   buyerMatches: BuyerMatch[]
   isListModalOpen: boolean
   setIsListModalOpen: (open: boolean) => void
@@ -869,10 +910,186 @@ const initialNotifications: NotificationItem[] = [
   },
 ]
 
+const initialUsers: UserRecord[] = [
+  {
+    id: 'USR-FRM-01',
+    name: 'Ramesh Patel',
+    email: 'ramesh.patel@kisanmail.in',
+    phone: '+91 98261 44520',
+    userType: 'Farmer',
+    location: 'Sirali, Harda',
+    district: 'Harda',
+    state: 'Madhya Pradesh',
+    registeredDate: 'Oct 14, 2024',
+    status: 'Active',
+    kycVerified: true,
+    organization: 'Narmada Valley Kisan Producer Co.',
+    lotsCount: 3,
+    transactionsCount: 3,
+    totalVolumeRs: 850930,
+  },
+  {
+    id: 'USR-FRM-02',
+    name: 'Suresh Choudhary',
+    email: 'suresh.choudhary@agrimail.in',
+    phone: '+91 94250 88120',
+    userType: 'Farmer',
+    location: 'Barnagar, Ujjain',
+    district: 'Ujjain',
+    state: 'Madhya Pradesh',
+    registeredDate: 'Nov 02, 2024',
+    status: 'Active',
+    kycVerified: true,
+    organization: 'Malwa Organic FPO Ltd.',
+    lotsCount: 2,
+    transactionsCount: 1,
+    totalVolumeRs: 280000,
+  },
+  {
+    id: 'USR-FRM-03',
+    name: 'Kailash Solanki',
+    email: 'kailash.solanki@farmernet.org',
+    phone: '+91 98930 11492',
+    userType: 'Farmer',
+    location: 'Ashta, Sehore',
+    district: 'Sehore',
+    state: 'Madhya Pradesh',
+    registeredDate: 'Dec 18, 2024',
+    status: 'Pending Verification',
+    kycVerified: false,
+    organization: 'Parbati Kisan Sangathan',
+    lotsCount: 1,
+    transactionsCount: 0,
+    totalVolumeRs: 0,
+  },
+  {
+    id: 'USR-BUY-01',
+    name: 'Sunil Aggarwal',
+    email: 'procurement@agrocorp.com',
+    phone: '+91 731 448900',
+    userType: 'Buyer',
+    location: 'Indore Processing Terminal, AB Road',
+    district: 'Indore',
+    state: 'Madhya Pradesh',
+    registeredDate: 'Aug 20, 2024',
+    status: 'Active',
+    kycVerified: true,
+    organization: 'AgroCorp Direct Procurement Ltd.',
+    lotsCount: 0,
+    transactionsCount: 5,
+    totalVolumeRs: 1240000,
+  },
+  {
+    id: 'USR-BUY-02',
+    name: 'Vijay Deshmukh',
+    email: 'procure.mp@itc.in',
+    phone: '+91 7577 229100',
+    userType: 'Buyer',
+    location: 'ITC Choupal Saagar Hub, Timarni',
+    district: 'Harda',
+    state: 'Madhya Pradesh',
+    registeredDate: 'Sep 05, 2024',
+    status: 'Active',
+    kycVerified: true,
+    organization: 'ITC Choupal Saagar Rural Hub',
+    lotsCount: 0,
+    transactionsCount: 8,
+    totalVolumeRs: 2480000,
+  },
+  {
+    id: 'USR-BUY-03',
+    name: 'Rajesh Mehra',
+    email: 'exports@mahakoshagro.in',
+    phone: '+91 7574 255102',
+    userType: 'Buyer',
+    location: 'Itarsi-Bhopal Export Hub',
+    district: 'Narmadapuram',
+    state: 'Madhya Pradesh',
+    registeredDate: 'Jan 10, 2025',
+    status: 'Active',
+    kycVerified: true,
+    organization: 'Mahakosh Agri Exports Ltd.',
+    lotsCount: 0,
+    transactionsCount: 2,
+    totalVolumeRs: 436400,
+  },
+  {
+    id: 'USR-BUY-04',
+    name: 'Anand Rathi',
+    email: 'anand@malwabiotraders.com',
+    phone: '+91 734 258900',
+    userType: 'Buyer',
+    location: 'Industrial Area, Ujjain',
+    district: 'Ujjain',
+    state: 'Madhya Pradesh',
+    registeredDate: 'Feb 15, 2025',
+    status: 'Pending Verification',
+    kycVerified: false,
+    organization: 'Malwa BioAgro Traders',
+    lotsCount: 0,
+    transactionsCount: 0,
+    totalVolumeRs: 0,
+  },
+  {
+    id: 'USR-ADM-01',
+    name: 'FarmNexus Operations Desk',
+    email: 'admin@farmnexus.mp.gov.in',
+    phone: '+91 755 244890',
+    userType: 'Admin',
+    location: 'State Agriculture Directorate, Bhopal',
+    district: 'Bhopal',
+    state: 'Madhya Pradesh',
+    registeredDate: 'Jan 01, 2024',
+    status: 'Active',
+    kycVerified: true,
+    organization: 'FarmNexus State Directorate',
+  },
+]
+
+const initialAuditLogs: AuditLog[] = [
+  {
+    id: 'LOG-101',
+    action: 'Market Price Updated',
+    adminUser: 'Admin Ops Desk',
+    targetType: 'MarketPrice',
+    targetId: 'Indore APMC - Wheat (Sharbati)',
+    timestamp: 'Today, 10:30 AM',
+    details: 'Modal price revised to ₹2,840/qtl based on AGMARKNET mandi arrival feed.',
+  },
+  {
+    id: 'LOG-102',
+    action: 'User KYC Verified',
+    adminUser: 'Admin Ops Desk',
+    targetType: 'User',
+    targetId: 'USR-BUY-01 (AgroCorp Direct)',
+    timestamp: 'Yesterday, 04:15 PM',
+    details: 'GSTIN 23AAACA1234F1Z8 and bank mandate verified with ICICI Bank.',
+  },
+  {
+    id: 'LOG-103',
+    action: 'Escrow Vault Audit',
+    adminUser: 'Admin Ops Desk',
+    targetType: 'Transaction',
+    targetId: 'TXN-2026-9041',
+    timestamp: 'May 14, 10:20 AM',
+    details: '₹1,71,730 verified locked in ICICI escrow ledger.',
+  },
+  {
+    id: 'LOG-104',
+    action: 'Lot Quality Inspected',
+    adminUser: 'Admin Ops Desk',
+    targetType: 'Lot',
+    targetId: 'LOT-AGN-081',
+    timestamp: 'May 13, 03:45 PM',
+    details: 'Quality grade Grade A (Export) verified by Narmada FPO assay lab.',
+  },
+]
+
 const DashboardContext = createContext<DashboardContextType | undefined>(undefined)
 
 export function DashboardProvider({ children }: { children: ReactNode }) {
   const [lang, setLang] = useState<'en' | 'hi'>('en')
+  const [userRole, setUserRole] = useState<UserRole>('farmer')
   const [profile] = useState<FarmerProfile>(initialProfile)
   
   // Persistent Lots state
@@ -920,10 +1137,54 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     }
   }, [transactions])
 
+  // Persistent Users state
+  const [users, setUsers] = useState<UserRecord[]>(() => {
+    try {
+      const saved = localStorage.getItem('farmnexus_users')
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed
+      }
+    } catch (e) {
+      console.warn('[DashboardContext] Failed to load users from localStorage', e)
+    }
+    return initialUsers
+  })
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('farmnexus_users', JSON.stringify(users))
+    } catch (e) {
+      console.warn('[DashboardContext] Failed to save users to localStorage', e)
+    }
+  }, [users])
+
+  // Persistent Audit Logs state
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => {
+    try {
+      const saved = localStorage.getItem('farmnexus_audit_logs')
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed
+      }
+    } catch (e) {
+      console.warn('[DashboardContext] Failed to load audit logs from localStorage', e)
+    }
+    return initialAuditLogs
+  })
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('farmnexus_audit_logs', JSON.stringify(auditLogs))
+    } catch (e) {
+      console.warn('[DashboardContext] Failed to save audit logs to localStorage', e)
+    }
+  }, [auditLogs])
+
   const [offers, setOffers] = useState<Offer[]>(initialOffers)
   const [payments, setPayments] = useState<PaymentTransaction[]>(initialPayments)
   const [notifications, setNotifications] = useState<NotificationItem[]>(initialNotifications)
-  const [marketData] = useState<MarketPriceData[]>(initialMarketData)
+  const [marketData, setMarketData] = useState<MarketPriceData[]>(initialMarketData)
   const [buyerMatches] = useState<BuyerMatch[]>(initialBuyerMatches)
 
   // Buyer Requirement & Profile State
@@ -1400,6 +1661,81 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     setNotifications(prev => [notif, ...prev])
   }
 
+  const addAuditLog = (
+    action: string,
+    targetType: AuditLog['targetType'],
+    targetId: string,
+    details: string
+  ) => {
+    const newLog: AuditLog = {
+      id: `LOG-${Date.now()}`,
+      action,
+      adminUser: 'Admin Ops Desk',
+      targetType,
+      targetId,
+      timestamp: 'Just now',
+      details,
+    }
+    setAuditLogs(prev => [newLog, ...prev])
+  }
+
+  const updateUserStatus = (userId: string, status: UserRecord['status']) => {
+    setUsers(prev =>
+      prev.map(u => (u.id === userId ? { ...u, status } : u))
+    )
+    addAuditLog('User Status Changed', 'User', userId, `Status modified to "${status}"`)
+  }
+
+  const verifyUser = (userId: string) => {
+    setUsers(prev =>
+      prev.map(u => (u.id === userId ? { ...u, kycVerified: true, status: 'Active' } : u))
+    )
+    addAuditLog('User KYC Verified', 'User', userId, 'Government KYC and trade registry verified.')
+  }
+
+  const flagLot = (lotId: string, reason: string) => {
+    setLots(prev =>
+      prev.map(l => (l.id === lotId ? { ...l, status: 'Under Review' as any } : l))
+    )
+    addAuditLog('Lot Flagged for Review', 'Lot', lotId, `Admin flagged lot: ${reason}`)
+  }
+
+  const addMarketPriceRecord = (record: Omit<MarketPriceData, 'sparkline'>) => {
+    const sparkline = [
+      record.minPrice,
+      Math.round((record.minPrice + record.modalPrice) / 2),
+      record.modalPrice - 20,
+      record.modalPrice + 10,
+      record.modalPrice,
+      record.maxPrice - 30,
+      record.modalPrice,
+    ]
+    const newRecord: MarketPriceData = {
+      ...record,
+      sparkline,
+      lastUpdated: 'Just now',
+    }
+    setMarketData(prev => [newRecord, ...prev])
+    addAuditLog('Market Price Added', 'MarketPrice', `${record.mandi} - ${record.crop}`, `Added modal price ₹${record.modalPrice}/qtl`)
+  }
+
+  const updateMarketPriceRecord = (mandi: string, crop: string, data: Partial<MarketPriceData>) => {
+    setMarketData(prev =>
+      prev.map(item => {
+        if (item.mandi === mandi && item.crop === crop) {
+          return { ...item, ...data, lastUpdated: 'Just now' }
+        }
+        return item
+      })
+    )
+    addAuditLog('Market Price Updated', 'MarketPrice', `${mandi} - ${crop}`, `Updated price parameters`)
+  }
+
+  const deleteMarketPriceRecord = (mandi: string, crop: string) => {
+    setMarketData(prev => prev.filter(item => !(item.mandi === mandi && item.crop === crop)))
+    addAuditLog('Market Price Removed', 'MarketPrice', `${mandi} - ${crop}`, 'Record deleted from market board')
+  }
+
   const markNotificationAsRead = (id: string) => {
     setNotifications(prev => prev.map(n => (n.id === id ? { ...n, read: true } : n)))
   }
@@ -1414,6 +1750,8 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         lang,
         setLang,
         toggleLang,
+        userRole,
+        setUserRole,
         profile,
         buyerProfile,
         buyerRequirement,
@@ -1425,6 +1763,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         deleteLot,
         publishDraftLot,
         pauseLot,
+        flagLot,
         getLotById,
         offers,
         acceptOffer,
@@ -1438,10 +1777,18 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         getTransactionById,
         updateTransactionPayment,
         advanceTransactionLifecycle,
+        users,
+        updateUserStatus,
+        verifyUser,
+        auditLogs,
+        addAuditLog,
         notifications,
         markNotificationAsRead,
         markAllNotificationsAsRead,
         marketData,
+        addMarketPriceRecord,
+        updateMarketPriceRecord,
+        deleteMarketPriceRecord,
         buyerMatches,
         isListModalOpen,
         setIsListModalOpen,

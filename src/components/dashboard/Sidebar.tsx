@@ -16,7 +16,12 @@ import {
   Search,
   Receipt,
   ArrowRightLeft,
-  Truck
+  Truck,
+  Package,
+  Activity,
+  DollarSign,
+  UserCheck,
+  Lock
 } from 'lucide-react'
 import { useDashboard } from '../../context/DashboardContext'
 
@@ -30,9 +35,10 @@ interface NavItem {
 
 export function Sidebar() {
   const location = useLocation()
-  const { profile, buyerProfile, notifications, setIsListModalOpen, lang } = useDashboard()
+  const { profile, buyerProfile, notifications, setIsListModalOpen, lang, userRole, setUserRole } = useDashboard()
 
   const isBuyerRoute = location.pathname.startsWith('/buyer')
+  const isAdminRoute = location.pathname.startsWith('/admin')
   const unreadCount = notifications.filter(n => !n.read).length
 
   const farmerNavItems: NavItem[] = [
@@ -139,7 +145,61 @@ export function Sidebar() {
     },
   ]
 
-  const navItems = isBuyerRoute ? buyerNavItems : farmerNavItems
+  const adminNavItems: NavItem[] = [
+    {
+      name: 'Admin Dashboard',
+      path: '/admin/dashboard',
+      exact: true,
+      icon: LayoutDashboard,
+    },
+    {
+      name: 'Users Directory',
+      path: '/admin/users',
+      icon: Users,
+    },
+    {
+      name: 'Farmer Profiles',
+      path: '/admin/farmers',
+      icon: UserCheck,
+    },
+    {
+      name: 'Buyer Directory',
+      path: '/admin/buyers',
+      icon: Building2,
+    },
+    {
+      name: 'Lot Management',
+      path: '/admin/lots',
+      icon: Package,
+    },
+    {
+      name: 'Market Price Feeds',
+      path: '/admin/market-prices',
+      icon: TrendingUp,
+    },
+    {
+      name: 'Commercial Offers',
+      path: '/admin/offers',
+      icon: Receipt,
+    },
+    {
+      name: 'Trade Transactions',
+      path: '/admin/transactions',
+      icon: CreditCard,
+    },
+    {
+      name: 'Payment Monitoring',
+      path: '/admin/payments',
+      icon: DollarSign,
+    },
+    {
+      name: 'Activity Logs',
+      path: '/admin/logs',
+      icon: Activity,
+    },
+  ]
+
+  const navItems = isAdminRoute ? adminNavItems : isBuyerRoute ? buyerNavItems : farmerNavItems
 
   return (
     <aside className="w-64 bg-monsoon border-r border-wheat/10 flex flex-col justify-between h-screen sticky top-0 z-30 select-none">
@@ -157,52 +217,58 @@ export function Sidebar() {
                 FarmNexus
               </span>
               <span className="font-mono text-[9px] uppercase font-semibold text-turmeric/80 tracking-wider">
-                Connecting Agriculture
+                {isAdminRoute ? 'Admin Control Portal' : isBuyerRoute ? 'Buyer Sourcing Desk' : 'Farmer Produce Hub'}
               </span>
             </div>
           </Link>
-
-          <div className="flex items-center justify-between mt-3 pt-2 border-t border-wheat/10">
-            <div className="flex items-center gap-1.5">
-              <span className="font-mono text-[10px] uppercase font-semibold text-turmeric bg-wheat/10 px-2 py-0.5 rounded">
-                {isBuyerRoute ? 'BUYER PORTAL' : 'FARMER PORTAL'}
-              </span>
-              <span className="w-1.5 h-1.5 rounded-full bg-datateal animate-pulse" />
-            </div>
-
-            <Link
-              to={isBuyerRoute ? '/farmer' : '/buyer/dashboard'}
-              className="text-[11px] font-body text-turmeric hover:underline flex items-center gap-1"
-            >
-              <ArrowRightLeft className="w-3 h-3" />
-              <span>{isBuyerRoute ? 'Farmer' : 'Buyer'}</span>
-            </Link>
-          </div>
         </div>
 
-        {/* Primary Action Button */}
-        <div className="p-4">
-          {isBuyerRoute ? (
+        {/* Portal Switcher & Action */}
+        <div className="px-4 py-3 space-y-2">
+          {/* Quick Role Switcher Bar */}
+          <div className="grid grid-cols-3 gap-1 p-1 bg-wheat/5 border border-wheat/10 rounded-xl">
             <Link
-              to="/buyer/lots"
-              className="w-full bg-turmeric text-monsoon font-body font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 hover:bg-turmeric/90 active:bg-turmeric/80 shadow-md transition-all cursor-pointer text-xs"
+              to="/farmer"
+              onClick={() => setUserRole('farmer')}
+              className={`py-1 text-[10px] font-mono font-bold rounded-lg text-center transition-all ${
+                !isBuyerRoute && !isAdminRoute ? 'bg-turmeric text-monsoon shadow-xs' : 'text-wheat/60 hover:text-wheat'
+              }`}
             >
-              <Search className="w-4 h-4" />
-              <span>{lang === 'en' ? 'Browse Farmer Lots' : 'फसल लॉट खोजें'}</span>
+              Farmer
             </Link>
-          ) : (
+            <Link
+              to="/buyer/dashboard"
+              onClick={() => setUserRole('buyer')}
+              className={`py-1 text-[10px] font-mono font-bold rounded-lg text-center transition-all ${
+                isBuyerRoute ? 'bg-turmeric text-monsoon shadow-xs' : 'text-wheat/60 hover:text-wheat'
+              }`}
+            >
+              Buyer
+            </Link>
+            <Link
+              to="/admin/dashboard"
+              onClick={() => setUserRole('admin')}
+              className={`py-1 text-[10px] font-mono font-bold rounded-lg text-center transition-all ${
+                isAdminRoute ? 'bg-turmeric text-monsoon shadow-xs' : 'text-wheat/60 hover:text-wheat'
+              }`}
+            >
+              Admin
+            </Link>
+          </div>
+
+          {!isBuyerRoute && !isAdminRoute && (
             <button
               onClick={() => setIsListModalOpen(true)}
-              className="w-full bg-turmeric text-monsoon font-body font-semibold py-3 px-4 rounded-xl flex items-center justify-center gap-2 hover:bg-turmeric/90 active:bg-turmeric/80 shadow-md transition-all cursor-pointer text-sm"
+              className="w-full py-2.5 px-4 bg-turmeric text-monsoon font-body font-bold text-xs rounded-xl hover:bg-turmeric/90 transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              <span>{lang === 'en' ? 'List Your Produce' : 'उपज सूचीबद्ध करें'}</span>
+              <span>{lang === 'en' ? 'List New Produce Lot' : 'नया लॉट बनाएं'}</span>
             </button>
           )}
         </div>
 
         {/* Navigation Menu */}
-        <nav className="px-3 py-2 space-y-1 overflow-y-auto max-h-[calc(100vh-280px)]">
+        <nav className="px-3 py-2 space-y-1 overflow-y-auto max-h-[calc(100vh-290px)]">
           {navItems.map((item) => {
             const isActive = item.exact
               ? location.pathname === item.path
@@ -246,7 +312,17 @@ export function Sidebar() {
           <span>{lang === 'en' ? 'Back to Landing Page' : 'मुख्य पृष्ठ पर लौटें'}</span>
         </Link>
 
-        {isBuyerRoute ? (
+        {isAdminRoute ? (
+          <div className="flex items-center gap-3 p-2.5 rounded-xl bg-wheat/5 border border-wheat/10">
+            <div className="w-8 h-8 rounded-lg bg-turmeric text-monsoon flex items-center justify-center font-serif text-sm font-bold flex-shrink-0">
+              AD
+            </div>
+            <div className="overflow-hidden">
+              <p className="font-body text-xs font-semibold text-wheat truncate">Admin Operations</p>
+              <p className="font-body text-[10px] text-wheat/50 truncate">Bhopal State HQ</p>
+            </div>
+          </div>
+        ) : isBuyerRoute ? (
           <div className="flex items-center gap-3 p-2.5 rounded-xl bg-wheat/5 border border-wheat/10">
             <div className="w-8 h-8 rounded-lg bg-turmeric text-monsoon flex items-center justify-center font-serif text-sm font-bold flex-shrink-0">
               AC

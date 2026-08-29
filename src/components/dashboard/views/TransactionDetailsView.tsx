@@ -560,3 +560,4 @@ export function TransactionDetailsView() {
     </div>
   )
 }
+
