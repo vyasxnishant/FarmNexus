@@ -12,7 +12,8 @@ import { CreateLotView } from './components/dashboard/views/CreateLotView'
 import { LotDetailsView } from './components/dashboard/views/LotDetailsView'
 import { BuyerMatchesView } from './components/dashboard/views/BuyerMatchesView'
 import { OffersView } from './components/dashboard/views/OffersView'
-import { PaymentsView } from './components/dashboard/views/PaymentsView'
+import { TransactionsView } from './components/dashboard/views/TransactionsView'
+import { TransactionDetailsView } from './components/dashboard/views/TransactionDetailsView'
 import { NotificationsView } from './components/dashboard/views/NotificationsView'
 import { ProfileView } from './components/dashboard/views/ProfileView'
 
@@ -43,8 +44,9 @@ export default function App() {
             <Route path="lots/:lotId" element={<LotDetailsView />} />
             <Route path="buyers" element={<BuyerMatchesView />} />
             <Route path="offers" element={<OffersView />} />
-            <Route path="transactions" element={<PaymentsView />} />
-            <Route path="payments" element={<PaymentsView />} />
+            <Route path="transactions" element={<TransactionsView />} />
+            <Route path="transactions/:transactionId" element={<TransactionDetailsView />} />
+            <Route path="payments" element={<TransactionsView />} />
             <Route path="notifications" element={<NotificationsView />} />
             <Route path="profile" element={<ProfileView />} />
           </Route>
@@ -56,6 +58,8 @@ export default function App() {
             <Route path="lots" element={<BuyerBrowseLotsView />} />
             <Route path="lots/:lotId" element={<BuyerLotDetailsView />} />
             <Route path="offers" element={<BuyerOffersView />} />
+            <Route path="transactions" element={<TransactionsView isBuyer />} />
+            <Route path="transactions/:transactionId" element={<TransactionDetailsView />} />
           </Route>
 
           {/* Fallback to home */}

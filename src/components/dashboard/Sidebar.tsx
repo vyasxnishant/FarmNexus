@@ -113,6 +113,11 @@ export function Sidebar() {
       icon: Receipt,
     },
     {
+      name: lang === 'en' ? 'Deals & Escrow' : 'लेनदेन व एस्क्रो',
+      path: '/buyer/transactions',
+      icon: CreditCard,
+    },
+    {
       name: lang === 'en' ? 'Transit & Logistics' : 'परिवहन लॉजिस्टिक्स',
       path: '/farmer/logistics',
       icon: Truck,

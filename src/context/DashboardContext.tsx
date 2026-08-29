@@ -118,6 +118,66 @@ export interface PaymentTransaction {
   }[]
 }
 
+export type TransactionPaymentStatus =
+  | 'Payment Pending'
+  | 'Payment Processing'
+  | 'Payment Successful'
+  | 'Payment Failed'
+  | 'Payment Refunded'
+
+export type TransactionLifecycleStatus =
+  | 'Payment Pending'
+  | 'Payment Completed'
+  | 'In Transit'
+  | 'Delivered'
+  | 'Completed'
+  | 'Cancelled'
+
+export interface TransactionStageEvent {
+  stage: string
+  label: string
+  labelHi?: string
+  timestamp: string
+  completed: boolean
+  description: string
+}
+
+export interface FarmTransaction {
+  id: string
+  lotId: string
+  offerId: string
+  farmerId: string
+  farmerName: string
+  farmerLocation: string
+  farmerPhone: string
+  buyerId: string
+  buyerName: string
+  buyerOrganization: string
+  buyerLocation: string
+  crop: string
+  cropHi?: string
+  variety: string
+  quantityQtl: number
+  unit: string
+  agreedPricePerQtl: number
+  produceValue: number
+  transportCost: number
+  mandiCess: number
+  finalAmount: number
+  mandiOrDeliveryLocation: string
+  createdDate: string
+  paymentStatus: TransactionPaymentStatus
+  transactionStatus: TransactionLifecycleStatus
+  timeline: TransactionStageEvent[]
+  paymentDetails?: {
+    method: 'UPI' | 'NetBanking' | 'e-NWR Escrow' | 'RTGS/NEFT'
+    transactionRef?: string
+    payerVpa?: string
+    paidAt?: string
+    escrowRef?: string
+  }
+}
+
 export interface NotificationItem {
   id: string
   type: 'price' | 'match' | 'offer' | 'payment' | 'system'
@@ -201,6 +261,18 @@ interface DashboardContextType {
   cancelBuyerOffer: (offerId: string) => void
   calculateLotMatchScore: (lot: CropLot, req?: BuyerRequirement) => MatchScoreResult
   payments: PaymentTransaction[]
+  transactions: FarmTransaction[]
+  getTransactionById: (transactionId: string) => FarmTransaction | undefined
+  updateTransactionPayment: (
+    transactionId: string,
+    paymentStatus: TransactionPaymentStatus,
+    transactionStatus: TransactionLifecycleStatus,
+    details?: FarmTransaction['paymentDetails']
+  ) => void
+  advanceTransactionLifecycle: (
+    transactionId: string,
+    newStatus: TransactionLifecycleStatus
+  ) => void
   notifications: NotificationItem[]
   markNotificationAsRead: (id: string) => void
   markAllNotificationsAsRead: () => void
@@ -628,6 +700,128 @@ const initialPayments: PaymentTransaction[] = [
   },
 ]
 
+const initialFarmTransactions: FarmTransaction[] = [
+  {
+    id: 'TXN-2026-9041',
+    lotId: 'LOT-AGN-081',
+    offerId: 'OFF-8950',
+    farmerId: 'FRM-MP-091',
+    farmerName: 'Ramesh Patel',
+    farmerLocation: 'Sirali Farm Godown #2, Harda, MP',
+    farmerPhone: '+91 98261 44520',
+    buyerId: 'BUY-ME-01',
+    buyerName: 'Sunil Aggarwal',
+    buyerOrganization: 'AgroCorp Direct Procurement Ltd.',
+    buyerLocation: 'Indore Processing Terminal, MP',
+    crop: 'Wheat (Sharbati)',
+    cropHi: 'गेहूं (शरबती)',
+    variety: 'C-306 Sharbati Premium',
+    quantityQtl: 60,
+    unit: 'Quintal',
+    agreedPricePerQtl: 2780,
+    produceValue: 166800,
+    transportCost: 4930,
+    mandiCess: 2502,
+    finalAmount: 171730,
+    mandiOrDeliveryLocation: 'Indore APMC Processing Bay #4',
+    createdDate: 'May 14, 2026, 09:30 AM',
+    paymentStatus: 'Payment Successful',
+    transactionStatus: 'In Transit',
+    timeline: [
+      { stage: 'offer_accepted', label: 'Offer Accepted by Farmer', labelHi: 'ऑफ़र स्वीकार किया गया', timestamp: 'May 14, 09:30 AM', completed: true, description: 'Agreed price ₹2,780/qtl for 60 quintals.' },
+      { stage: 'transaction_created', label: 'Transaction Contract Binding', labelHi: 'अनुबंध तैयार', timestamp: 'May 14, 09:32 AM', completed: true, description: 'Electronic trade contract generated.' },
+      { stage: 'escrow_funded', label: 'Buyer Escrow Funded', labelHi: 'एस्क्रो में राशि जमा', timestamp: 'May 14, 10:15 AM', completed: true, description: '₹1,71,730 verified in FarmNexus ICICI Escrow Account.' },
+      { stage: 'in_transit', label: 'Produce Dispatched & In Transit', labelHi: 'उपज रास्ते में है', timestamp: 'May 14, 02:00 PM', completed: true, description: 'Carrier Vehicle MP-09-GH-4120 dispatched from Sirali.' },
+      { stage: 'delivered', label: 'Delivery & Gate Assay Check', labelHi: 'डिलिवरी व गुणवत्ता जांच', timestamp: 'Pending', completed: false, description: 'Produce arrival at Indore processing dock.' },
+      { stage: 'completed', label: 'Escrow Settlement to Farmer SBI', labelHi: 'किसान खाते में भुगतान', timestamp: 'Pending', completed: false, description: 'Auto-release upon digital delivery receipt.' },
+    ],
+    paymentDetails: {
+      method: 'e-NWR Escrow',
+      transactionRef: 'ESC-ICICI-8492019',
+      payerVpa: 'agrocorp.procure@icici',
+      paidAt: 'May 14, 2026, 10:15 AM',
+      escrowRef: 'ESC-TRX-948201',
+    },
+  },
+  {
+    id: 'TXN-2026-8812',
+    lotId: 'LOT-AGN-092',
+    offerId: 'OFF-8951',
+    farmerId: 'FRM-MP-091',
+    farmerName: 'Ramesh Patel',
+    farmerLocation: 'Sirali Farm Godown #2, Harda, MP',
+    farmerPhone: '+91 98261 44520',
+    buyerId: 'BUY-ITC-02',
+    buyerName: 'Vijay Deshmukh',
+    buyerOrganization: 'ITC Choupal Saagar Rural Hub',
+    buyerLocation: 'Timarni Collection Center, Harda',
+    crop: 'Soybean (Yellow)',
+    cropHi: 'सोयाबीन',
+    variety: 'JS-335 Certified Seed',
+    quantityQtl: 95,
+    unit: 'Quintal',
+    agreedPricePerQtl: 4920,
+    produceValue: 467400,
+    transportCost: 0, // Farm-gate buyer pickup
+    mandiCess: 7011,
+    finalAmount: 467400,
+    mandiOrDeliveryLocation: 'Farm-gate pickup Sirali',
+    createdDate: 'May 12, 2026, 11:00 AM',
+    paymentStatus: 'Payment Successful',
+    transactionStatus: 'Completed',
+    timeline: [
+      { stage: 'offer_accepted', label: 'Offer Accepted by Farmer', timestamp: 'May 12, 11:00 AM', completed: true, description: 'Agreed price ₹4,920/qtl for 95 quintals.' },
+      { stage: 'transaction_created', label: 'Transaction Contract Binding', timestamp: 'May 12, 11:05 AM', completed: true, description: 'Electronic trade contract generated.' },
+      { stage: 'escrow_funded', label: 'Buyer Escrow Funded', timestamp: 'May 12, 11:30 AM', completed: true, description: '₹4,67,400 secured in escrow.' },
+      { stage: 'in_transit', label: 'Farm-gate Weighing & Loading', timestamp: 'May 12, 03:00 PM', completed: true, description: 'Loaded into ITC collection truck.' },
+      { stage: 'delivered', label: 'Delivered at Collection Center', timestamp: 'May 12, 05:30 PM', completed: true, description: 'Moisture 10.1% verified.' },
+      { stage: 'completed', label: 'Funds Disbursed to Farmer SBI', timestamp: 'May 12, 06:15 PM', completed: true, description: 'Direct transfer to SBI •••• 8842.' },
+    ],
+    paymentDetails: {
+      method: 'UPI',
+      transactionRef: 'UPI-SBI-9948201',
+      payerVpa: 'itc.choupal@hdfcbank',
+      paidAt: 'May 12, 2026, 06:15 PM',
+      escrowRef: 'ESC-TRX-224810',
+    },
+  },
+  {
+    id: 'TXN-2026-7734',
+    lotId: 'LOT-AGN-074',
+    offerId: 'OFF-8952',
+    farmerId: 'FRM-MP-091',
+    farmerName: 'Ramesh Patel',
+    farmerLocation: 'Sirali Farm Godown #2, Harda, MP',
+    farmerPhone: '+91 98261 44520',
+    buyerId: 'BUY-MK-03',
+    buyerName: 'Rajesh Mehra',
+    buyerOrganization: 'Mahakosh Agri Exports Ltd.',
+    buyerLocation: 'Hoshangabad Mandi Yard, MP',
+    crop: 'Basmati Rice (Pusa 1121)',
+    cropHi: 'बासमती चावल',
+    variety: 'Pusa 1121 Export Grade',
+    quantityQtl: 50,
+    unit: 'Quintal',
+    agreedPricePerQtl: 4300,
+    produceValue: 215000,
+    transportCost: 3200,
+    mandiCess: 3225,
+    finalAmount: 218200,
+    mandiOrDeliveryLocation: 'Hoshangabad APMC Export Terminal',
+    createdDate: 'May 14, 2026, 08:45 AM',
+    paymentStatus: 'Payment Pending',
+    transactionStatus: 'Payment Pending',
+    timeline: [
+      { stage: 'offer_accepted', label: 'Offer Accepted by Farmer', timestamp: 'May 14, 08:45 AM', completed: true, description: 'Agreed price ₹4,300/qtl for 50 quintals.' },
+      { stage: 'transaction_created', label: 'Transaction Contract Binding', timestamp: 'May 14, 08:46 AM', completed: true, description: 'Electronic trade contract generated.' },
+      { stage: 'escrow_funded', label: 'Buyer Escrow Deposit', timestamp: 'Awaiting Buyer Action', completed: false, description: 'Buyer must deposit ₹2,18,200 to secure deal.' },
+      { stage: 'in_transit', label: 'Carrier Dispatch & Transit', timestamp: 'Pending Escrow', completed: false, description: 'Carrier vehicle will be scheduled.' },
+      { stage: 'delivered', label: 'Delivery & Gate Inspection', timestamp: 'Pending', completed: false, description: 'Delivery to Hoshangabad APMC.' },
+      { stage: 'completed', label: 'Settlement to Farmer Account', timestamp: 'Pending', completed: false, description: 'Direct payout to farmer.' },
+    ],
+  },
+]
+
 const initialNotifications: NotificationItem[] = [
   {
     id: 'NOTIF-01',
@@ -704,6 +898,28 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     }
   }, [lots])
 
+  // Persistent Transactions state
+  const [transactions, setTransactions] = useState<FarmTransaction[]>(() => {
+    try {
+      const saved = localStorage.getItem('farmnexus_transactions')
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed
+      }
+    } catch (e) {
+      console.warn('[DashboardContext] Failed to load transactions from localStorage', e)
+    }
+    return initialFarmTransactions
+  })
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('farmnexus_transactions', JSON.stringify(transactions))
+    } catch (e) {
+      console.warn('[DashboardContext] Failed to save transactions to localStorage', e)
+    }
+  }, [transactions])
+
   const [offers, setOffers] = useState<Offer[]>(initialOffers)
   const [payments, setPayments] = useState<PaymentTransaction[]>(initialPayments)
   const [notifications, setNotifications] = useState<NotificationItem[]>(initialNotifications)
@@ -734,6 +950,84 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
 
   const [isListModalOpen, setIsListModalOpen] = useState(false)
   const [counterModalOffer, setCounterModalOffer] = useState<Offer | null>(null)
+
+  const getTransactionById = (transactionId: string): FarmTransaction | undefined => {
+    return transactions.find(t => t.id === transactionId)
+  }
+
+  const updateTransactionPayment = (
+    transactionId: string,
+    paymentStatus: TransactionPaymentStatus,
+    transactionStatus: TransactionLifecycleStatus,
+    details?: FarmTransaction['paymentDetails']
+  ) => {
+    setTransactions(prev =>
+      prev.map(t => {
+        if (t.id === transactionId) {
+          const updatedTimeline = t.timeline.map(tl => {
+            if (tl.stage === 'escrow_funded' && (paymentStatus === 'Payment Successful' || transactionStatus === 'Payment Completed')) {
+              return { ...tl, completed: true, timestamp: 'Just now' }
+            }
+            return tl
+          })
+
+          return {
+            ...t,
+            paymentStatus,
+            transactionStatus,
+            paymentDetails: details || t.paymentDetails,
+            timeline: updatedTimeline,
+          }
+        }
+        return t
+      })
+    )
+
+    // Notification
+    const notif: NotificationItem = {
+      id: `NOTIF-${Date.now()}`,
+      type: 'payment',
+      title: paymentStatus === 'Payment Successful' ? 'Escrow Deposit Verified!' : 'Payment Update',
+      titleHi: paymentStatus === 'Payment Successful' ? 'एस्क्रो में भुगतान प्राप्त!' : 'भुगतान अपडेट',
+      message: `Transaction ${transactionId} payment status updated to ${paymentStatus}.`,
+      messageHi: `लेनदेन ${transactionId} की भुगतान स्थिति अब ${paymentStatus} है।`,
+      timeAgo: 'Just now',
+      read: false,
+      link: `/farmer/transactions`,
+    }
+    setNotifications(prev => [notif, ...prev])
+  }
+
+  const advanceTransactionLifecycle = (
+    transactionId: string,
+    newStatus: TransactionLifecycleStatus
+  ) => {
+    setTransactions(prev =>
+      prev.map(t => {
+        if (t.id === transactionId) {
+          const updatedTimeline = t.timeline.map(tl => {
+            if (newStatus === 'In Transit' && tl.stage === 'in_transit') {
+              return { ...tl, completed: true, timestamp: 'Just now' }
+            }
+            if (newStatus === 'Delivered' && (tl.stage === 'in_transit' || tl.stage === 'delivered')) {
+              return { ...tl, completed: true, timestamp: 'Just now' }
+            }
+            if (newStatus === 'Completed') {
+              return { ...tl, completed: true, timestamp: 'Just now' }
+            }
+            return tl
+          })
+
+          return {
+            ...t,
+            transactionStatus: newStatus,
+            timeline: updatedTimeline,
+          }
+        }
+        return t
+      })
+    )
+  }
 
   const toggleLang = () => setLang(prev => (prev === 'en' ? 'hi' : 'en'))
 
@@ -1022,38 +1316,63 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       )
     }
 
-    // Create a new pending payment transaction
-    const newPayment: PaymentTransaction = {
-      id: `PAY-2026-${Math.floor(Math.random() * 800 + 200)}`,
+    // Create a new binding FarmTransaction
+    const associatedLot = lots.find(l => l.id === targetOffer.lotId)
+    const newTxnId = `TXN-2026-${Math.floor(Math.random() * 9000 + 1000)}`
+    const produceValue = targetOffer.offeredPrice * targetOffer.quantityQtl
+    const transportCost = 4930 // Estimated multi-axle freight
+    const mandiCess = Math.round(produceValue * 0.015)
+    const finalAmount = produceValue + transportCost
+
+    const newFarmTransaction: FarmTransaction = {
+      id: newTxnId,
+      lotId: targetOffer.lotId,
       offerId: targetOffer.id,
-      lotTitle: targetOffer.lotTitle,
+      farmerId: 'FRM-MP-091',
+      farmerName: profile.name,
+      farmerLocation: associatedLot ? associatedLot.location : 'Sirali Farm Godown #2, Harda, MP',
+      farmerPhone: profile.phone,
+      buyerId: targetOffer.buyerId,
       buyerName: targetOffer.buyerName,
-      amount: targetOffer.totalAmount,
-      status: 'Processing',
-      dueDate: 'Tomorrow, by 02:00 PM',
-      paymentMethod: 'UPI',
-      referenceId: `UPI-ESC-${Math.floor(Math.random() * 800000 + 100000)}`,
+      buyerOrganization: targetOffer.buyerCompany,
+      buyerLocation: targetOffer.pickupLocation || 'Buyer Regional Terminal',
+      crop: associatedLot ? associatedLot.crop : targetOffer.lotTitle,
+      cropHi: associatedLot?.cropHi,
+      variety: associatedLot ? associatedLot.variety : 'Standard FAQ Grade',
+      quantityQtl: targetOffer.quantityQtl,
+      unit: associatedLot?.unit || 'Quintal',
+      agreedPricePerQtl: targetOffer.offeredPrice,
+      produceValue,
+      transportCost,
+      mandiCess,
+      finalAmount,
+      mandiOrDeliveryLocation: targetOffer.pickupLocation || 'Farm-gate pickup',
+      createdDate: 'Just now',
+      paymentStatus: 'Payment Pending',
+      transactionStatus: 'Payment Pending',
       timeline: [
-        { step: 'Offer Accepted by Farmer', completed: true, date: 'Just now' },
-        { step: 'Buyer Escrow Deposited', completed: true, date: 'Just now' },
-        { step: 'Pickup & Weighing Scheduled', completed: false, date: 'Tomorrow 10:00 AM' },
-        { step: 'Direct Bank Transfer Trigger', completed: false, date: 'Tomorrow 02:00 PM' },
+        { stage: 'offer_accepted', label: 'Offer Accepted by Farmer', labelHi: 'ऑफ़र स्वीकार किया गया', timestamp: 'Just now', completed: true, description: `Agreed at ₹${targetOffer.offeredPrice.toLocaleString('en-IN')}/qtl for ${targetOffer.quantityQtl} qtl.` },
+        { stage: 'transaction_created', label: 'Binding Contract Generated', labelHi: 'अनुबंध तैयार', timestamp: 'Just now', completed: true, description: 'Trade contract signed electronically.' },
+        { stage: 'escrow_funded', label: 'Buyer Escrow Deposit', labelHi: 'एस्क्रो जमा', timestamp: 'Pending Buyer Deposit', completed: false, description: `Buyer must deposit ₹${finalAmount.toLocaleString('en-IN')} into Escrow.` },
+        { stage: 'in_transit', label: 'Carrier Dispatch & In Transit', labelHi: 'रास्ते में', timestamp: 'Pending Escrow', completed: false, description: 'Carrier pickup will be scheduled.' },
+        { stage: 'delivered', label: 'Delivery & Gate Inspection', labelHi: 'डिलिवरी व जांच', timestamp: 'Pending', completed: false, description: 'Moisture and quality assay confirmation.' },
+        { stage: 'completed', label: 'Escrow Settlement to Farmer SBI', labelHi: 'खाते में भुगतान', timestamp: 'Pending', completed: false, description: 'Auto-release to farmer linked bank account.' },
       ],
     }
 
-    setPayments(prev => [newPayment, ...prev])
+    setTransactions(prev => [newFarmTransaction, ...prev])
 
-    // Notification
+    // Notification for Farmer
     const notif: NotificationItem = {
       id: `NOTIF-${Date.now()}`,
       type: 'payment',
-      title: 'Offer Accepted — Escrow Secured',
-      titleHi: 'ऑफ़र स्वीकार किया गया — एस्क्रो सुरक्षित',
-      message: `You accepted offer for ${targetOffer.lotTitle} at ₹${targetOffer.offeredPrice}/qtl. Total ₹${targetOffer.totalAmount.toLocaleString('en-IN')} is locked in escrow.`,
-      messageHi: `आपने ₹${targetOffer.offeredPrice}/क्विंटल पर ${targetOffer.lotTitle} का ऑफ़र स्वीकार कर लिया है।`,
+      title: 'Offer Accepted — Transaction Created!',
+      titleHi: 'ऑफ़र स्वीकार — अनुबंध तैयार!',
+      message: `You accepted offer for ${targetOffer.lotTitle} at ₹${targetOffer.offeredPrice}/qtl. Transaction ${newTxnId} is now created and awaiting buyer escrow deposit.`,
+      messageHi: `आपने ₹${targetOffer.offeredPrice}/क्विंटल पर ${targetOffer.lotTitle} का ऑफ़र स्वीकार कर लिया है। लेनदेन ${newTxnId} तैयार है।`,
       timeAgo: 'Just now',
       read: false,
-      link: '/farmer/payments',
+      link: `/farmer/transactions/${newTxnId}`,
     }
     setNotifications(prev => [notif, ...prev])
   }
@@ -1115,6 +1434,10 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         cancelBuyerOffer,
         calculateLotMatchScore,
         payments,
+        transactions,
+        getTransactionById,
+        updateTransactionPayment,
+        advanceTransactionLifecycle,
         notifications,
         markNotificationAsRead,
         markAllNotificationsAsRead,

@@ -251,8 +251,8 @@ export function OffersView() {
                       <CheckCircle2 className="w-4 h-4" />
                       {lang === 'en' ? 'Deal Accepted! Funds locked in escrow.' : 'सौदा स्वीकृत! राशि एस्क्रो में सुरक्षित।'}
                     </span>
-                    <Link to="/farmer/payments" className="font-body text-xs text-turmeric font-semibold hover:underline">
-                      {lang === 'en' ? 'Track Escrow Payout →' : 'भुगतान ट्रैक करें →'}
+                    <Link to="/farmer/transactions" className="font-body text-xs text-turmeric font-semibold hover:underline flex items-center gap-1">
+                      {lang === 'en' ? 'View Contract & Track Escrow →' : 'अनुबंध देखें व एस्क्रो ट्रैक करें →'}
                     </Link>
                   </div>
                 )}

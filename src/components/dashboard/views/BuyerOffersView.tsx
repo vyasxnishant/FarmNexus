@@ -265,10 +265,10 @@ export function BuyerOffersView() {
 
                     {isAccepted && (
                       <Link
-                        to="/farmer/payments"
+                        to="/buyer/transactions"
                         className="px-3.5 py-1.5 rounded-xl bg-turmeric text-monsoon font-body text-xs font-bold hover:bg-turmeric/90 transition-all shadow-xs"
                       >
-                        Proceed to Escrow
+                        Deposit to Escrow
                       </Link>
                     )}
                   </div>
