@@ -234,6 +234,24 @@ export function BuyerLotDetailsView() {
                 )}
               </div>
             </div>
+
+            {/* Farm-Gate Freight & Transit Estimate */}
+            <div className="bg-soil/5 rounded-2xl p-4 border border-soil/10 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Truck className="w-5 h-5 text-turmeric" />
+                <div>
+                  <span className="font-body text-xs font-bold text-soil block">
+                    Estimated Transit & Freight
+                  </span>
+                  <p className="text-[11px] text-soil/60">
+                    Farm-Gate to Buyer Terminal (~145 km) &bull; Est. 3.5 hrs transit
+                  </p>
+                </div>
+              </div>
+              <span className="font-mono text-xs font-bold text-datateal bg-datateal/10 px-2.5 py-1 rounded-xl border border-datateal/30">
+                ~₹34/km Freight
+              </span>
+            </div>
           </div>
 
           {/* Quality Grading Scorecard */}

@@ -5,6 +5,8 @@ import { DashboardLayout } from './components/dashboard/DashboardLayout'
 import { OverviewView } from './components/dashboard/views/OverviewView'
 import { MarketIntelligenceView } from './components/dashboard/views/MarketIntelligenceView'
 import { MarketPricesComparisonView } from './components/dashboard/views/MarketPricesComparisonView'
+import { LogisticsView } from './components/dashboard/views/LogisticsView'
+import { StorageView } from './components/dashboard/views/StorageView'
 import { MyLotsView } from './components/dashboard/views/MyLotsView'
 import { CreateLotView } from './components/dashboard/views/CreateLotView'
 import { LotDetailsView } from './components/dashboard/views/LotDetailsView'
@@ -33,6 +35,8 @@ export default function App() {
             <Route index element={<OverviewView />} />
             <Route path="market-intelligence" element={<MarketIntelligenceView />} />
             <Route path="market-prices" element={<MarketPricesComparisonView />} />
+            <Route path="logistics" element={<LogisticsView />} />
+            <Route path="storage" element={<StorageView />} />
             <Route path="lots" element={<MyLotsView />} />
             <Route path="lots/create" element={<CreateLotView />} />
             <Route path="lots/edit/:lotId" element={<CreateLotView isEditing />} />

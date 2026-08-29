@@ -21,7 +21,8 @@ import {
   Sparkles,
   ArrowRight,
   TrendingUp,
-  Receipt
+  Receipt,
+  Building2
 } from 'lucide-react'
 import { useDashboard, type CropLot } from '../../../context/DashboardContext'
 
@@ -427,13 +428,33 @@ export function LotDetailsView() {
               </div>
             </div>
 
-            <Link
-              to={`/farmer/market-prices?lotId=${lot.id}`}
-              className="w-full py-2.5 px-4 rounded-xl bg-turmeric text-monsoon font-body text-xs font-bold hover:bg-turmeric/90 active:bg-turmeric/80 transition-all flex items-center justify-center gap-2 shadow-md"
-            >
-              <TrendingUp className="w-4 h-4" />
-              <span>{lang === 'en' ? 'Compare Mandi Prices for this Lot' : 'इस लॉट हेतु मंडी भाव तुलना'}</span>
-            </Link>
+            <div className="space-y-2 pt-2">
+              <Link
+                to={`/farmer/market-prices?lotId=${lot.id}`}
+                className="w-full py-2.5 px-4 rounded-xl bg-turmeric text-monsoon font-body text-xs font-bold hover:bg-turmeric/90 active:bg-turmeric/80 transition-all flex items-center justify-center gap-2 shadow-md"
+              >
+                <TrendingUp className="w-4 h-4" />
+                <span>{lang === 'en' ? 'Compare Mandi Prices' : 'मंडी भाव तुलना'}</span>
+              </Link>
+
+              <div className="grid grid-cols-2 gap-2">
+                <Link
+                  to={`/farmer/logistics?lotId=${lot.id}`}
+                  className="py-2 px-3 rounded-xl bg-wheat/10 text-wheat font-body text-xs font-semibold hover:bg-wheat/20 border border-wheat/20 transition-all flex items-center justify-center gap-1.5"
+                >
+                  <Truck className="w-3.5 h-3.5 text-turmeric" />
+                  <span>{lang === 'en' ? 'Logistics' : 'परिवहन'}</span>
+                </Link>
+
+                <Link
+                  to={`/farmer/storage?lotId=${lot.id}`}
+                  className="py-2 px-3 rounded-xl bg-wheat/10 text-wheat font-body text-xs font-semibold hover:bg-wheat/20 border border-wheat/20 transition-all flex items-center justify-center gap-1.5"
+                >
+                  <Building2 className="w-3.5 h-3.5 text-turmeric" />
+                  <span>{lang === 'en' ? 'Storage' : 'गोदाम'}</span>
+                </Link>
+              </div>
+            </div>
           </div>
 
           {/* Buyer Match Placeholder */}

@@ -397,6 +397,14 @@ export function MarketPricesComparisonView() {
                 </p>
               )}
             </div>
+
+            <Link
+              to={`/farmer/logistics?lotId=${selectedLotId}&mandi=${encodeURIComponent(recommendation.recommendedMandi.mandiName)}`}
+              className="px-4 py-2.5 rounded-xl bg-turmeric text-monsoon font-body text-xs font-bold hover:bg-turmeric/90 active:bg-turmeric/80 transition-all flex items-center gap-1.5 self-start sm:self-center shadow-sm flex-shrink-0"
+            >
+              <Truck className="w-3.5 h-3.5" />
+              <span>Route & Transit</span>
+            </Link>
           </div>
         </div>
       )}

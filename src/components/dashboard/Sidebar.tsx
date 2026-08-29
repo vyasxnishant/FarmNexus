@@ -15,7 +15,8 @@ import {
   Building2,
   Search,
   Receipt,
-  ArrowRightLeft
+  ArrowRightLeft,
+  Truck
 } from 'lucide-react'
 import { useDashboard } from '../../context/DashboardContext'
 
@@ -50,6 +51,16 @@ export function Sidebar() {
       name: lang === 'en' ? 'Mandi Price Comparison' : 'मंडी भाव तुलना',
       path: '/farmer/market-prices',
       icon: TrendingUp,
+    },
+    {
+      name: lang === 'en' ? 'Logistics & Transit' : 'परिवहन व लॉजिस्टिक्स',
+      path: '/farmer/logistics',
+      icon: Truck,
+    },
+    {
+      name: lang === 'en' ? 'Nearby Warehousing' : 'गोदाम व भंडारण',
+      path: '/farmer/storage',
+      icon: Building2,
     },
     {
       name: lang === 'en' ? 'My Crops & Lots' : 'मेरी फसलें व लॉट',
@@ -100,6 +111,16 @@ export function Sidebar() {
       name: lang === 'en' ? 'My Bids & Offers' : 'मेरे ऑफ़र व बोलियां',
       path: '/buyer/offers',
       icon: Receipt,
+    },
+    {
+      name: lang === 'en' ? 'Transit & Logistics' : 'परिवहन लॉजिस्टिक्स',
+      path: '/farmer/logistics',
+      icon: Truck,
+    },
+    {
+      name: lang === 'en' ? 'Warehousing Directory' : 'भंडारण डायरेक्टरी',
+      path: '/farmer/storage',
+      icon: Building2,
     },
     {
       name: lang === 'en' ? 'Market Intelligence' : 'मंडी भाव विश्लेषण',
