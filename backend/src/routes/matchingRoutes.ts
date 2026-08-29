@@ -9,3 +9,4 @@ router.get('/requirements', authenticateToken, MatchingController.getRequirement
 router.put('/requirements', authenticateToken, MatchingController.updateRequirements)
 
 export default router
+

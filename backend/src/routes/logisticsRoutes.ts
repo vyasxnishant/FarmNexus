@@ -6,3 +6,4 @@ const router = Router()
 router.get('/:lotId', LogisticsController.getLogisticsForLot)
 
 export default router
+

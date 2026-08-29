@@ -6,3 +6,4 @@ const router = Router()
 router.get('/', LogisticsController.getStorageFacilities)
 
 export default router
+

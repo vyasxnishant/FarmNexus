@@ -10,3 +10,4 @@ router.post('/webhook', PaymentController.webhook)
 router.get('/:id', authenticateToken, PaymentController.getPaymentById)
 
 export default router
+

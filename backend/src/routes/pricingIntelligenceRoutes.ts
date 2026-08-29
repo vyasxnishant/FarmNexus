@@ -6,3 +6,4 @@ const router = Router()
 router.get('/:lotId', PricingIntelligenceController.getPriceIntelligence)
 
 export default router
+

@@ -19,3 +19,4 @@ router.post('/:id/quality', authenticateToken, authorizeRole(['FARMER', 'ADMIN']
 router.put('/:id/quality', authenticateToken, authorizeRole(['FARMER', 'ADMIN']), LotController.updateQuality)
 
 export default router
+

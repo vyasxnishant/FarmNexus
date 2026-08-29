@@ -29,3 +29,4 @@ router.put('/market-prices/:id', AdminController.updateMarketPrice)
 router.delete('/market-prices/:id', AdminController.deleteMarketPrice)
 
 export default router
+
