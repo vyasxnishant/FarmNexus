@@ -20,5 +20,8 @@ export const config = {
   weatherApiKey: process.env.WEATHER_API_KEY || '',
   paymentSecretKey: process.env.PAYMENT_SECRET_KEY || '',
   paymentWebhookSecret: process.env.PAYMENT_WEBHOOK_SECRET || '',
+  razorpayKeyId: process.env.RAZORPAY_KEY_ID || 'rzp_test_5173FarmNexus',
+  razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET || 'secret_test_farmnexus_rzp_2026',
+  razorpayWebhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET || 'whsec_test_farmnexus_rzp_webhook_2026',
   agmarknetEndpoint: 'https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070',
 }

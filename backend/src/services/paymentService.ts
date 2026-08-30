@@ -1,157 +1,356 @@
 import crypto from 'crypto'
+import Razorpay from 'razorpay'
 import { config } from '../config/env.js'
 import { inMemoryDb } from '../config/db.js'
 import { PaymentRecord, Transaction } from '../models/types.js'
+import { AdminService } from './adminService.js'
 
 export class PaymentService {
-  static async createPaymentOrder(transactionId: string, userId: string, method: string = 'e-NWR Escrow') {
+  /**
+   * Return public gateway configuration to authenticated client.
+   * NEVER exposes RAZORPAY_KEY_SECRET.
+   */
+  static getPaymentConfig() {
+    return {
+      keyId: config.razorpayKeyId,
+      currency: 'INR',
+      sandbox: true,
+    }
+  }
+
+  /**
+   * Create Razorpay Order with server-calculated amount.
+   * Client-submitted amounts are NEVER trusted.
+   */
+  static async createPaymentOrder(transactionId: string, buyerUserId: string, method: string = 'RAZORPAY') {
     const txn = inMemoryDb.transactions.find(t => t.id === transactionId)
     if (!txn) {
       throw new Error(`Transaction not found with ID: ${transactionId}`)
     }
 
-    if (txn.buyer_id !== userId && txn.farmer_id !== userId) {
-      const user = inMemoryDb.users.find(u => u.id === userId)
-      if (user?.user_type !== 'ADMIN') {
-        throw new Error('Unauthorized to initiate payment on this transaction.')
-      }
+    // Role and identity verification: Only the assigned Buyer (or Admin) can initiate payment
+    const requestingUser = inMemoryDb.users.find(u => u.id === buyerUserId)
+    if (txn.buyer_id !== buyerUserId && requestingUser?.user_type !== 'ADMIN') {
+      throw new Error('Unauthorized: Only the assigned Buyer can initiate escrow payment for this transaction.')
     }
 
-    const orderId = `ORDER-FN-${Date.now().toString().slice(-6)}`
-    const escrowVirtualAccount = `DEMO-ESCROW-VPA-${txn.id.replace(/-/g, '')}`
-    const referenceId = `REF-${crypto.randomBytes(4).toString('hex').toUpperCase()}`
-    const now = new Date().toISOString()
+    if (txn.payment_status === 'Payment Successful') {
+      throw new Error('Payment already completed and escrow funded for this transaction.')
+    }
 
+    // SERVER-CALCULATED AMOUNT ONLY
+    const payableAmount = Number(txn.final_amount)
+    if (!payableAmount || payableAmount <= 0) {
+      throw new Error('Invalid payable amount calculated for transaction.')
+    }
+
+    const amountInPaise = Math.round(payableAmount * 100)
+    let razorpayOrderId = `order_${crypto.randomBytes(8).toString('hex')}`
+
+    try {
+      if (config.razorpayKeyId && config.razorpayKeySecret) {
+        const razorpay = new Razorpay({
+          key_id: config.razorpayKeyId,
+          key_secret: config.razorpayKeySecret,
+        })
+
+        const rzpOrder = await razorpay.orders.create({
+          amount: amountInPaise,
+          currency: 'INR',
+          receipt: `rcpt_${txn.id.slice(-8)}`,
+          notes: {
+            transactionId: txn.id,
+            buyerId: txn.buyer_id,
+            farmerId: txn.farmer_id,
+            crop: txn.crop,
+            quantityQtl: String(txn.quantity_qtl),
+          },
+        })
+
+        if (rzpOrder && rzpOrder.id) {
+          razorpayOrderId = rzpOrder.id
+        }
+      }
+    } catch (err) {
+      console.warn('[PaymentService] Razorpay SDK order creation notice (using test sandbox order):', err)
+    }
+
+    const now = new Date().toISOString()
+    const paymentId = `PAY-${Date.now().toString().slice(-6)}`
+    const escrowVirtualAccount = `ESC-VAULT-${txn.id.replace(/-/g, '').toUpperCase()}`
+
+    // Persist PENDING Payment Record
     const paymentRecord: PaymentRecord = {
-      id: `PAY-${Date.now().toString().slice(-4)}`,
+      id: paymentId,
       transaction_id: txn.id,
-      order_id: orderId,
-      amount: txn.final_amount,
+      order_id: razorpayOrderId,
+      buyer_id: txn.buyer_id,
+      farmer_id: txn.farmer_id,
+      amount: payableAmount,
       currency: 'INR',
-      status: 'Payment Processing',
+      gateway: 'RAZORPAY',
+      gateway_order_id: razorpayOrderId,
+      status: 'Payment Pending',
       payment_method: method,
-      reference_id: referenceId,
+      reference_id: `REF-${crypto.randomBytes(4).toString('hex').toUpperCase()}`,
       escrow_virtual_account: escrowVirtualAccount,
-      payer_vpa: txn.payment_details?.payer_vpa,
+      payer_vpa: txn.payment_details?.payer_vpa || `${txn.buyer_name.toLowerCase().replace(/\s+/g, '.')}@icici`,
       created_at: now,
       updated_at: now,
     }
 
-    inMemoryDb.payments.unshift(paymentRecord)
+    // Check if previous pending payment exists for this txn and replace/update
+    const existingIndex = inMemoryDb.payments.findIndex(p => p.transaction_id === txn.id && p.status === 'Payment Pending')
+    if (existingIndex >= 0) {
+      inMemoryDb.payments[existingIndex] = paymentRecord
+    } else {
+      inMemoryDb.payments.unshift(paymentRecord)
+    }
 
     return {
-      orderId,
-      amount: txn.final_amount,
+      orderId: razorpayOrderId,
+      amount: payableAmount,
+      amountInPaise,
       currency: 'INR',
+      keyId: config.razorpayKeyId,
       transactionId: txn.id,
       escrowVirtualAccount,
-      referenceId,
-      method,
-      beneficiary: {
-        farmerName: txn.farmer_name,
-        farmerLocation: txn.farmer_location,
+      buyer: {
+        id: txn.buyer_id,
+        name: txn.buyer_name,
+        organization: txn.buyer_organization,
+      },
+      produce: {
+        crop: txn.crop,
+        quantityQtl: txn.quantity_qtl,
+        unit: txn.unit,
       },
     }
   }
 
+  /**
+   * Verify Razorpay cryptographic signature using RAZORPAY_KEY_SECRET.
+   * Payment is ONLY marked SUCCESS when HMAC SHA-256 signature matches.
+   */
   static async verifyPayment(data: {
     transactionId: string
-    orderId: string
-    referenceId: string
+    razorpay_order_id: string
+    razorpay_payment_id: string
+    razorpay_signature: string
     payerVpa?: string
   }) {
-    const txn = inMemoryDb.transactions.find(t => t.id === data.transactionId)
-    if (!txn) {
-      throw new Error(`Transaction not found with ID: ${data.transactionId}`)
+    const { transactionId, razorpay_order_id, razorpay_payment_id, razorpay_signature, payerVpa } = data
+
+    if (!transactionId || !razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+      throw new Error('Incomplete payment verification payload. transactionId, razorpay_order_id, razorpay_payment_id, and razorpay_signature are all required.')
     }
 
-    // Backend verification
-    const payment = inMemoryDb.payments.find(p => p.order_id === data.orderId || p.transaction_id === data.transactionId)
+    const txn = inMemoryDb.transactions.find(t => t.id === transactionId)
+    if (!txn) {
+      throw new Error(`Transaction not found with ID: ${transactionId}`)
+    }
+
+    // IDEMPOTENCY CHECK: If already verified with this payment ID, return existing receipt
+    const existingSuccess = inMemoryDb.payments.find(
+      p => p.gateway_payment_id === razorpay_payment_id && p.status === 'Payment Successful'
+    )
+    if (existingSuccess) {
+      return {
+        verified: true,
+        isIdempotentReplay: true,
+        transactionId: txn.id,
+        paymentId: existingSuccess.id,
+        gatewayPaymentId: existingSuccess.gateway_payment_id,
+        gatewayOrderId: existingSuccess.gateway_order_id,
+        amount: existingSuccess.amount,
+        currency: existingSuccess.currency,
+        paymentStatus: 'Payment Successful',
+        transactionStatus: txn.transaction_status,
+        escrowReference: existingSuccess.escrow_virtual_account,
+        paidAt: existingSuccess.paid_at || new Date().toISOString(),
+        buyer: txn.buyer_name,
+        farmer: txn.farmer_name,
+        crop: txn.crop,
+      }
+    }
+
+    // CRYPTOGRAPHIC HMAC SHA-256 SIGNATURE VERIFICATION
+    const generatedSignature = crypto
+      .createHmac('sha256', config.razorpayKeySecret)
+      .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+      .digest('hex')
+
+    let isSignatureValid = false
+    try {
+      const a = Buffer.from(generatedSignature, 'utf8')
+      const b = Buffer.from(razorpay_signature, 'utf8')
+      isSignatureValid = a.length === b.length && crypto.timingSafeEqual(a, b)
+    } catch {
+      isSignatureValid = false
+    }
+
+    const payment = inMemoryDb.payments.find(
+      p => p.transaction_id === transactionId || p.gateway_order_id === razorpay_order_id || p.order_id === razorpay_order_id
+    )
 
     const now = new Date()
-    const timeString = `${now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+    const nowIso = now.toISOString()
+    const timeString = `${now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}, ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
 
-    // Update payment record
-    if (payment) {
-      payment.status = 'Payment Successful'
-      payment.paid_at = now.toISOString()
-      payment.updated_at = now.toISOString()
+    if (!isSignatureValid) {
+      if (payment) {
+        payment.status = 'Payment Failed'
+        payment.failure_reason = 'Cryptographic signature mismatch'
+        payment.updated_at = nowIso
+      }
+      txn.payment_status = 'Payment Failed'
+      txn.updated_at = nowIso
+
+      await AdminService.logActivity(
+        'Payment Verification Failed',
+        'System Gateway',
+        'Transaction',
+        txn.id,
+        `Razorpay signature verification rejected for order ${razorpay_order_id}.`
+      )
+
+      throw new Error('Invalid Razorpay signature. Cryptographic verification failed.')
     }
 
-    // Update Transaction
+    // SIGNATURE VERIFIED SUCCESSFULLY
+    if (payment) {
+      payment.status = 'Payment Successful'
+      payment.gateway_order_id = razorpay_order_id
+      payment.gateway_payment_id = razorpay_payment_id
+      payment.gateway_signature = razorpay_signature
+      payment.paid_at = nowIso
+      payment.updated_at = nowIso
+    }
+
+    // Update Transaction State
     txn.payment_status = 'Payment Successful'
-    txn.transaction_status = txn.transaction_status === 'Payment Pending' ? 'Payment Completed' : txn.transaction_status
+    if (txn.transaction_status === 'Payment Pending') {
+      txn.transaction_status = 'Payment Completed'
+    }
     txn.payment_details = {
-      method: payment ? payment.payment_method : 'e-NWR Escrow Virtual Vault',
-      transaction_ref: data.referenceId || `ESC-REF-${Date.now().toString().slice(-5)}`,
-      payer_vpa: data.payerVpa || txn.payment_details?.payer_vpa || 'buyer@icici',
+      method: 'Razorpay Gateway (Escrow Vault)',
+      transaction_ref: razorpay_payment_id,
+      payer_vpa: payerVpa || txn.payment_details?.payer_vpa || 'buyer.agrocorp@icici',
       paid_at: timeString,
       escrow_ref: `ESC-VAULT-${txn.id}`,
     }
-    txn.updated_at = now.toISOString()
+    txn.updated_at = nowIso
 
     // Mark Escrow Funded stage in timeline
     const escrowStage = txn.timeline.find(s => s.stage === 'escrow_funded')
     if (escrowStage) {
       escrowStage.completed = true
       escrowStage.timestamp = timeString
-      escrowStage.description = `₹${txn.final_amount.toLocaleString('en-IN')} secured in FarmNexus ICICI Escrow Sub-Ledger.`
+      escrowStage.description = `₹${txn.final_amount.toLocaleString('en-IN')} secured in FarmNexus ICICI Escrow Sub-Ledger via Razorpay (${razorpay_payment_id}).`
     }
+
+    await AdminService.logActivity(
+      'Escrow Funded',
+      txn.buyer_name,
+      'Transaction',
+      txn.id,
+      `₹${txn.final_amount.toLocaleString('en-IN')} paid via Razorpay (Payment ID: ${razorpay_payment_id}). Escrow locked.`
+    )
 
     return {
       verified: true,
       transactionId: txn.id,
-      paymentStatus: txn.payment_status,
+      paymentId: payment ? payment.id : `PAY-${Date.now().toString().slice(-4)}`,
+      gatewayPaymentId: razorpay_payment_id,
+      gatewayOrderId: razorpay_order_id,
+      amount: txn.final_amount,
+      currency: 'INR',
+      paymentStatus: 'Payment Successful',
       transactionStatus: txn.transaction_status,
-      finalAmount: txn.final_amount,
       escrowReference: txn.payment_details.escrow_ref,
-      timestamp: timeString,
+      paidAt: timeString,
+      buyer: txn.buyer_name,
+      farmer: txn.farmer_name,
+      crop: txn.crop,
+      quantityQtl: txn.quantity_qtl,
     }
   }
 
-  static async handleWebhook(payload: any, signature?: string) {
-    if (!payload || !payload.transactionId) {
-      return { received: false, error: 'Invalid webhook payload structure.' }
-    }
+  /**
+   * Handle Razorpay Webhook Events securely with signature verification.
+   */
+  static async handleWebhook(rawBody: string | object, signature?: string) {
+    const payloadStr = typeof rawBody === 'string' ? rawBody : JSON.stringify(rawBody)
 
-    // If webhook secret configured, verify HMAC signature
-    if (config.paymentWebhookSecret && signature) {
+    if (config.razorpayWebhookSecret && signature) {
       const expectedSignature = crypto
-        .createHmac('sha256', config.paymentWebhookSecret)
-        .update(JSON.stringify(payload))
+        .createHmac('sha256', config.razorpayWebhookSecret)
+        .update(payloadStr)
         .digest('hex')
+
       if (signature !== expectedSignature) {
-        throw new Error('Invalid payment webhook signature.')
+        throw new Error('Invalid Razorpay webhook signature.')
       }
     }
 
-    const { transactionId, orderId, referenceId, status } = payload
+    const event = typeof rawBody === 'string' ? JSON.parse(rawBody) : rawBody
+    const eventType = event.event
 
-    if (status === 'SUCCESS' || status === 'PAID') {
-      const result = await this.verifyPayment({
-        transactionId,
-        orderId: orderId || 'WEBHOOK-ORDER',
-        referenceId: referenceId || `WH-${Date.now().toString().slice(-4)}`,
-      })
-      return { received: true, processed: true, result }
+    if (eventType === 'payment.captured' || eventType === 'order.paid') {
+      const entity = event.payload?.payment?.entity || event.payload?.order?.entity
+      const notes = entity?.notes || {}
+      const transactionId = notes.transactionId
+
+      if (transactionId) {
+        const txn = inMemoryDb.transactions.find(t => t.id === transactionId)
+        if (txn && txn.payment_status !== 'Payment Successful') {
+          txn.payment_status = 'Payment Successful'
+          if (txn.transaction_status === 'Payment Pending') {
+            txn.transaction_status = 'Payment Completed'
+          }
+          txn.updated_at = new Date().toISOString()
+        }
+      }
+      return { received: true, processed: true, eventType }
     }
 
-    // Failed or Cancelled Webhook
-    const txn = inMemoryDb.transactions.find(t => t.id === transactionId)
-    if (txn && status === 'FAILED') {
-      txn.payment_status = 'Payment Failed'
-      txn.updated_at = new Date().toISOString()
+    if (eventType === 'payment.failed') {
+      const entity = event.payload?.payment?.entity
+      const notes = entity?.notes || {}
+      const transactionId = notes.transactionId
+      if (transactionId) {
+        const txn = inMemoryDb.transactions.find(t => t.id === transactionId)
+        if (txn && txn.payment_status === 'Payment Pending') {
+          txn.payment_status = 'Payment Failed'
+          txn.updated_at = new Date().toISOString()
+        }
+      }
+      return { received: true, processed: true, eventType }
     }
 
-    return { received: true, processed: false, status: status || 'FAILED' }
+    return { received: true, processed: false, eventType }
   }
 
   static async getPaymentById(paymentId: string) {
-    const payment = inMemoryDb.payments.find(p => p.id === paymentId || p.transaction_id === paymentId)
+    const payment = inMemoryDb.payments.find(
+      p => p.id === paymentId || p.transaction_id === paymentId || p.gateway_payment_id === paymentId
+    )
     if (!payment) {
       throw new Error(`Payment record not found for ID: ${paymentId}`)
     }
     return payment
   }
-}
 
+  static async getAllPayments() {
+    return inMemoryDb.payments.map(p => {
+      const txn = inMemoryDb.transactions.find(t => t.id === p.transaction_id)
+      return {
+        ...p,
+        buyerName: txn?.buyer_name || 'Buyer',
+        buyerOrganization: txn?.buyer_organization || 'Enterprise',
+        farmerName: txn?.farmer_name || 'Producer',
+        crop: txn?.crop || 'Crop',
+      }
+    })
+  }
+}

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   DollarSign,
   Search,
@@ -9,16 +9,38 @@ import {
   ShieldCheck,
   CreditCard,
   Lock,
-  ArrowUpRight
+  ArrowUpRight,
+  RefreshCw,
+  Receipt
 } from 'lucide-react'
 import { useDashboard } from '../../../context/DashboardContext'
+import { paymentApi } from '../../../services/apiServices'
 import { DemoDataBadge } from '../components/DemoDataBadge'
 
 export function AdminPaymentsView() {
   const { transactions } = useDashboard()
 
+  const [dbPayments, setDbPayments] = useState<any[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('All')
+  const [isLoading, setIsLoading] = useState(false)
+
+  useEffect(() => {
+    const fetchPayments = async () => {
+      try {
+        setIsLoading(true)
+        const res = await paymentApi.getAll()
+        if (res.data && Array.isArray(res.data)) {
+          setDbPayments(res.data)
+        }
+      } catch (err) {
+        console.warn('[AdminPaymentsView] Gateway ledger fallback:', err)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    fetchPayments()
+  }, [])
 
   const filteredPayments = transactions.filter((txn) => {
     if (statusFilter !== 'All' && txn.paymentStatus !== statusFilter) return false

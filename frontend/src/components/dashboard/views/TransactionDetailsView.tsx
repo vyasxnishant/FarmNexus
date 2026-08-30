@@ -20,15 +20,12 @@ import {
   Loader2,
   Check,
   XCircle,
-  FileText
+  FileText,
+  CreditCard
 } from 'lucide-react'
-import {
-  useDashboard,
-  type FarmTransaction,
-  type TransactionLifecycleStatus,
-  type TransactionPaymentStatus
-} from '../../../context/DashboardContext'
-import { verifyPayment } from '../../../services/paymentService'
+import { useDashboard, type FarmTransaction, type TransactionLifecycleStatus, type TransactionPaymentStatus } from '../../../context/DashboardContext'
+import { paymentApi } from '../../../services/apiServices'
+import { useRazorpay } from '../../../hooks/useRazorpay'
 import { DemoDataBadge } from '../components/DemoDataBadge'
 
 export function TransactionDetailsView() {
@@ -38,17 +35,19 @@ export function TransactionDetailsView() {
   const [searchParams] = useSearchParams()
   const isBuyerMode = location.pathname.startsWith('/buyer')
 
-  const { getTransactionById, updateTransactionPayment, advanceTransactionLifecycle, lang } = useDashboard()
+  const { getTransactionById, updateTransactionPayment, advanceTransactionLifecycle, currentUser, lang } = useDashboard()
   const txn = transactionId ? getTransactionById(transactionId) : undefined
+  const { isLoaded: isRzpLoaded, loadRazorpayScript } = useRazorpay()
 
   // Pay Modal State for Buyer
   const actionParam = searchParams.get('action')
   const [isPayModalOpen, setIsPayModalOpen] = useState(actionParam === 'deposit')
-  const [selectedPayMethod, setSelectedPayMethod] = useState<'UPI' | 'NetBanking' | 'e-NWR Escrow' | 'RTGS/NEFT'>('UPI')
-  const [vpaInput, setVpaInput] = useState('agrocorp.procure@icici')
+  const [selectedPayMethod, setSelectedPayMethod] = useState<'RAZORPAY_TEST' | 'UPI' | 'NetBanking' | 'Card'>('RAZORPAY_TEST')
   const [isProcessingPayment, setIsProcessingPayment] = useState(false)
+  const [isVerifying, setIsVerifying] = useState(false)
   const [paymentError, setPaymentError] = useState<string | null>(null)
   const [paymentSuccess, setPaymentSuccess] = useState(false)
+  const [verifiedReceipt, setVerifiedReceipt] = useState<any>(null)
 
   // Dispatch & Delivery Action loading
   const [isActionLoading, setIsActionLoading] = useState(false)
@@ -69,7 +68,7 @@ export function TransactionDetailsView() {
         </p>
         <button
           onClick={() => navigate(isBuyerMode ? '/buyer/transactions' : '/farmer/transactions')}
-          className="px-6 py-2.5 rounded-xl bg-monsoon text-wheat font-body text-xs font-bold"
+          className="px-6 py-2.5 rounded-xl bg-monsoon text-wheat font-body text-xs font-bold cursor-pointer"
         >
           Return to Transactions Desk
         </button>
@@ -77,45 +76,99 @@ export function TransactionDetailsView() {
     )
   }
 
-  const handleSimulatePayment = async (e: React.FormEvent) => {
+  const handleRazorpayPayment = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsProcessingPayment(true)
     setPaymentError(null)
 
     try {
-      // Execute backend verification abstraction
-      const verifyRes = await verifyPayment({
-        transactionId: txn.id,
-        orderId: `ORD-${Date.now()}`,
-        paymentId: `PAY-${Date.now()}`,
-        paymentMethod: selectedPayMethod,
-        payerVpa: vpaInput,
-      })
-
-      if (verifyRes.success) {
-        updateTransactionPayment(
-          txn.id,
-          'Payment Successful',
-          'Payment Completed',
-          {
-            method: selectedPayMethod,
-            transactionRef: verifyRes.paymentId,
-            payerVpa: vpaInput,
-            paidAt: new Date().toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
-            escrowRef: verifyRes.escrowReference,
-          }
-        )
-        setPaymentSuccess(true)
-        setTimeout(() => {
-          setIsPayModalOpen(false)
-          setPaymentSuccess(false)
-        }, 1500)
-      } else {
-        setPaymentError(verifyRes.message || 'Payment verification failed.')
+      // 1. Ensure Razorpay SDK is loaded
+      const hasRzp = window.Razorpay ? true : await loadRazorpayScript()
+      if (!hasRzp || !window.Razorpay) {
+        throw new Error('Razorpay secure checkout SDK could not be initialized. Please check connection.')
       }
+
+      // 2. Call backend to create Razorpay Order (Server-calculated amount)
+      const orderRes = await paymentApi.createOrder(txn.id, 'RAZORPAY')
+      if (!orderRes.success || !orderRes.data) {
+        throw new Error(orderRes.message || 'Failed to create payment order on server.')
+      }
+
+      const orderData = orderRes.data
+
+      // 3. Open official Razorpay Checkout modal
+      const options = {
+        key: orderData.keyId,
+        amount: orderData.amountInPaise,
+        currency: orderData.currency || 'INR',
+        name: 'FarmNexus Escrow',
+        description: `Escrow Deposit for ${txn.crop} (${txn.id})`,
+        image: '/logo.jpg',
+        order_id: orderData.orderId,
+        handler: async function (response: any) {
+          setIsProcessingPayment(false)
+          setIsVerifying(true)
+          setPaymentError(null)
+
+          try {
+            // 4. Send signature to backend for cryptographic HMAC SHA-256 verification
+            const verifyRes = await paymentApi.verify({
+              transactionId: txn.id,
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+            })
+
+            if (verifyRes.success && verifyRes.data) {
+              updateTransactionPayment(
+                txn.id,
+                'Payment Successful',
+                'Payment Completed',
+                {
+                  method: 'Razorpay Gateway (Escrow Vault)',
+                  transactionRef: response.razorpay_payment_id,
+                  paidAt: verifyRes.data.paidAt,
+                  escrowRef: verifyRes.data.escrowReference,
+                }
+              )
+              setVerifiedReceipt(verifyRes.data)
+              setPaymentSuccess(true)
+            } else {
+              setPaymentError(verifyRes.message || 'Payment signature verification failed on server.')
+            }
+          } catch (err: any) {
+            setPaymentError(err.response?.data?.message || err.message || 'Cryptographic verification failed.')
+          } finally {
+            setIsVerifying(false)
+          }
+        },
+        prefill: {
+          name: currentUser?.name || txn.buyerName,
+          email: currentUser?.email || 'buyer@farmnexus.in',
+          contact: currentUser?.phone || '9826144520',
+        },
+        notes: {
+          transactionId: txn.id,
+          crop: txn.crop,
+        },
+        theme: {
+          color: '#152A26',
+        },
+        modal: {
+          ondismiss: function () {
+            setIsProcessingPayment(false)
+          },
+        },
+      }
+
+      const rzp = new window.Razorpay(options)
+      rzp.on('payment.failed', function (resp: any) {
+        setPaymentError(resp.error?.description || 'Payment was declined or cancelled.')
+        setIsProcessingPayment(false)
+      })
+      rzp.open()
     } catch (err: any) {
-      setPaymentError(err?.message || 'Payment simulation failed. Please try again.')
-    } finally {
+      setPaymentError(err.response?.data?.message || err.message || 'Unable to open checkout gateway.')
       setIsProcessingPayment(false)
     }
   }
@@ -447,22 +500,81 @@ export function TransactionDetailsView() {
         </div>
       </div>
 
-      {/* Buyer Payment / Escrow Simulation Modal */}
+      {/* Buyer Razorpay Test Mode Escrow Modal */}
       {isPayModalOpen && (
         <div className="fixed inset-0 z-50 bg-monsoon/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-wheat rounded-3xl border border-soil/15 max-w-md w-full p-6 md:p-8 space-y-5 shadow-2xl animate-fade-in">
+          <div className="bg-wheat rounded-3xl border border-soil/15 max-w-lg w-full p-6 md:p-8 space-y-5 shadow-2xl animate-fade-in max-h-[90vh] overflow-y-auto">
             {paymentSuccess ? (
-              <div className="text-center py-6 space-y-3">
-                <CheckCircle2 className="w-14 h-14 text-datateal mx-auto animate-bounce" />
-                <h3 className="font-serif text-2xl font-bold text-soil">
-                  Escrow Deposit Verified!
-                </h3>
-                <p className="font-body text-xs text-soil/70 max-w-xs mx-auto">
-                  ₹{txn.finalAmount.toLocaleString('en-IN')} is secured in FarmNexus Escrow Account. Seller notified for carrier dispatch.
-                </p>
+              <div className="text-center py-4 space-y-4">
+                <div className="w-16 h-16 rounded-full bg-datateal/20 text-datateal border border-datateal/40 flex items-center justify-center mx-auto">
+                  <CheckCircle2 className="w-10 h-10" />
+                </div>
+                <div className="space-y-1">
+                  <span className="font-mono text-[10px] uppercase font-bold tracking-wider text-turmeric bg-monsoon px-2.5 py-0.5 rounded-full">
+                    CRYPTOGRAPHICALLY VERIFIED &bull; ESCROW LOCKED
+                  </span>
+                  <h3 className="font-serif text-2xl font-bold text-soil">
+                    Payment Successful
+                  </h3>
+                  <p className="font-body text-xs text-soil/70 max-w-sm mx-auto">
+                    ₹{txn.finalAmount.toLocaleString('en-IN')} has been securely deposited into the FarmNexus Escrow Sub-Ledger.
+                  </p>
+                </div>
+
+                {/* Verified Receipt Card */}
+                <div className="p-4 bg-monsoon text-wheat rounded-2xl text-left space-y-3 font-body text-xs">
+                  <div className="flex items-center justify-between border-b border-wheat/10 pb-2">
+                    <span className="font-bold text-wheat flex items-center gap-1.5">
+                      <Receipt className="w-4 h-4 text-turmeric" />
+                      <span>FarmNexus Escrow Receipt</span>
+                    </span>
+                    <span className="font-mono text-[10px] text-datateal font-bold">RAZORPAY TEST</span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-[11px]">
+                    <div>
+                      <span className="text-wheat/50 block">Transaction ID:</span>
+                      <strong className="font-mono text-wheat">{txn.id}</strong>
+                    </div>
+                    <div>
+                      <span className="text-wheat/50 block">Razorpay Payment ID:</span>
+                      <strong className="font-mono text-turmeric truncate block">
+                        {verifiedReceipt?.gatewayPaymentId || txn.paymentDetails?.transactionRef || 'pay_test_verified'}
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="text-wheat/50 block">Amount Paid:</span>
+                      <strong className="font-mono text-datateal text-sm font-bold">
+                        ₹{txn.finalAmount.toLocaleString('en-IN')}
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="text-wheat/50 block">Producer / Farmer:</span>
+                      <strong className="text-wheat truncate block">{txn.farmerName}</strong>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-wheat/10 text-[10px] text-wheat/60 flex items-center justify-between">
+                    <span>Escrow Vault: {txn.paymentDetails?.escrowRef || `ESC-VAULT-${txn.id}`}</span>
+                    <span>{verifiedReceipt?.paidAt || 'Just now'}</span>
+                  </div>
+                </div>
+
+                <div className="pt-2 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsPayModalOpen(false)
+                      setPaymentSuccess(false)
+                    }}
+                    className="px-6 py-2.5 bg-monsoon text-wheat font-body text-xs font-bold rounded-xl hover:bg-monsoon/90 transition-all cursor-pointer"
+                  >
+                    Done / Return to Deal Details
+                  </button>
+                </div>
               </div>
             ) : (
-              <form onSubmit={handleSimulatePayment} className="space-y-4">
+              <form onSubmit={handleRazorpayPayment} className="space-y-4">
                 <div className="flex items-center justify-between pb-3 border-b border-soil/10">
                   <div className="flex items-center gap-2">
                     <Lock className="w-5 h-5 text-turmeric" />
@@ -473,20 +585,26 @@ export function TransactionDetailsView() {
                   <button
                     type="button"
                     onClick={() => setIsPayModalOpen(false)}
-                    className="text-soil/40 hover:text-soil cursor-pointer"
+                    className="text-soil/40 hover:text-soil text-xl font-bold cursor-pointer"
                   >
                     ✕
                   </button>
                 </div>
 
-                <div className="p-3 bg-monsoon text-wheat rounded-xl space-y-1">
-                  <span className="text-[10px] font-mono text-turmeric uppercase block">CONTRACT AMOUNT TO SECURE</span>
-                  <p className="font-mono text-2xl font-bold text-datateal">
+                <div className="p-3.5 bg-monsoon text-wheat rounded-2xl space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-mono text-turmeric uppercase">CONTRACT PAYABLE AMOUNT</span>
+                    <span className="font-mono text-[10px] bg-wheat/10 text-wheat/80 px-2 py-0.5 rounded-full">
+                      SERVER COMPUTED
+                    </span>
+                  </div>
+                  <p className="font-mono text-3xl font-bold text-datateal">
                     ₹{txn.finalAmount.toLocaleString('en-IN')}
                   </p>
-                  <span className="text-[10px] text-wheat/60 block">
-                    {txn.crop} ({txn.quantityQtl} {txn.unit}) &bull; {txn.id}
-                  </span>
+                  <div className="flex items-center justify-between text-[11px] text-wheat/70 pt-1 border-t border-wheat/10">
+                    <span>{txn.crop} ({txn.quantityQtl} {txn.unit})</span>
+                    <span className="font-mono">{txn.id}</span>
+                  </div>
                 </div>
 
                 {paymentError && (
@@ -496,60 +614,36 @@ export function TransactionDetailsView() {
                   </div>
                 )}
 
-                {/* Payment Method Selector */}
-                <div>
-                  <label className="block font-body text-xs font-semibold text-soil mb-1.5">
-                    Select Payment Rail
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {(['UPI', 'e-NWR Escrow', 'NetBanking', 'RTGS/NEFT'] as const).map((m) => (
-                      <button
-                        key={m}
-                        type="button"
-                        onClick={() => setSelectedPayMethod(m)}
-                        className={`py-2 px-3 rounded-xl font-body text-xs font-semibold border text-center transition-all cursor-pointer ${
-                          selectedPayMethod === m
-                            ? 'bg-monsoon text-wheat border-monsoon shadow-xs'
-                            : 'bg-soil/5 text-soil border-soil/15 hover:bg-soil/10'
-                        }`}
-                      >
-                        {m}
-                      </button>
-                    ))}
+                <div className="p-3.5 bg-soil/5 rounded-2xl border border-soil/10 text-xs font-body space-y-2 text-soil/80">
+                  <div className="flex items-center gap-2 font-bold text-soil">
+                    <ShieldCheck className="w-4 h-4 text-turmeric" />
+                    <span>Razorpay Test Gateway (Sandbox Mode)</span>
                   </div>
-                </div>
-
-                {selectedPayMethod === 'UPI' && (
-                  <div>
-                    <label className="block font-body text-xs font-semibold text-soil mb-1">
-                      Corporate Payer UPI VPA
-                    </label>
-                    <input
-                      type="text"
-                      value={vpaInput}
-                      onChange={(e) => setVpaInput(e.target.value)}
-                      placeholder="company@bank"
-                      className="w-full px-3 py-2 rounded-xl bg-wheat border border-soil/20 font-mono text-xs font-bold text-soil"
-                    />
-                  </div>
-                )}
-
-                <div className="p-2.5 rounded-xl bg-soil/5 border border-soil/10 text-[11px] text-soil/60 font-body">
-                  ⚠️ <strong>Sandbox Simulation:</strong> This tests the end-to-end backend verification pipeline without transferring actual bank capital.
+                  <p className="text-[11px] leading-relaxed">
+                    Clicking below initiates a real test checkout session with Razorpay. You can test UPI, NetBanking, and Cards. Funds are cryptographically validated by FarmNexus backend before locking into Escrow.
+                  </p>
                 </div>
 
                 <button
                   type="submit"
-                  disabled={isProcessingPayment}
-                  className="w-full py-3 bg-turmeric text-monsoon font-body text-xs font-bold rounded-xl hover:bg-turmeric/90 transition-all shadow-sm cursor-pointer flex items-center justify-center gap-2"
+                  disabled={isProcessingPayment || isVerifying}
+                  className="w-full py-3.5 bg-turmeric text-monsoon font-body text-xs font-bold rounded-xl hover:bg-turmeric/90 active:bg-turmeric/80 transition-all shadow-md cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60"
                 >
                   {isProcessingPayment ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Verifying with Escrow Vault...</span>
+                      <span>Opening Razorpay Checkout...</span>
+                    </>
+                  ) : isVerifying ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Verifying HMAC Signature with Backend...</span>
                     </>
                   ) : (
-                    <span>Confirm & Authorize Escrow Deposit</span>
+                    <>
+                      <CreditCard className="w-4 h-4" />
+                      <span>Pay ₹{txn.finalAmount.toLocaleString('en-IN')} via Razorpay Test</span>
+                    </>
                   )}
                 </button>
               </form>

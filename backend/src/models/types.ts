@@ -296,8 +296,14 @@ export interface PaymentRecord {
   id: string
   transaction_id: string
   order_id: string
+  buyer_id?: string
+  farmer_id?: string
   amount: number
   currency: string
+  gateway?: 'RAZORPAY' | 'MANUAL' | 'ESCROW'
+  gateway_order_id?: string
+  gateway_payment_id?: string
+  gateway_signature?: string
   status: PaymentStatus
   payment_method: string
   reference_id: string

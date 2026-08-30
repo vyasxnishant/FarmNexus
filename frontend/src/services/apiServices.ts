@@ -175,14 +175,28 @@ export const transactionApi = {
   },
 }
 
-// 9. Payments & Escrow
+// 9. Payments & Escrow (Razorpay Test Gateway)
 export const paymentApi = {
-  createOrder: async (transactionId: string, method?: string) => {
-    const res = await apiClient.post('/payments/create', { transactionId, method })
+  getConfig: async () => {
+    const res = await apiClient.get('/payments/config')
     return res.data
   },
-  verify: async (payload: { transactionId: string; orderId: string; referenceId: string; payerVpa?: string }) => {
+  createOrder: async (transactionId: string, method?: string) => {
+    const res = await apiClient.post('/payments/create-order', { transactionId, method })
+    return res.data
+  },
+  verify: async (payload: {
+    transactionId: string
+    razorpay_order_id: string
+    razorpay_payment_id: string
+    razorpay_signature: string
+    payerVpa?: string
+  }) => {
     const res = await apiClient.post('/payments/verify', payload)
+    return res.data
+  },
+  getAll: async () => {
+    const res = await apiClient.get('/payments/all')
     return res.data
   },
   getById: async (id: string) => {
