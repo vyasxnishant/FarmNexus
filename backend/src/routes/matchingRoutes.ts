@@ -1,12 +1,15 @@
 import { Router } from 'express'
 import { MatchingController } from '../controllers/matchingController.js'
-import { authenticateToken } from '../middleware/auth.js'
+import { authenticateToken, authorizeRole } from '../middleware/auth.js'
 
 const router = Router()
 
-router.get('/lots', authenticateToken, MatchingController.getMatchingLots)
-router.get('/requirements', authenticateToken, MatchingController.getRequirements)
-router.put('/requirements', authenticateToken, MatchingController.updateRequirements)
+// Buyer-only protected matching routes
+router.use(authenticateToken, authorizeRole(['BUYER', 'ADMIN']))
+
+router.get('/lots', MatchingController.getMatchingLots)
+router.get('/requirements', MatchingController.getRequirements)
+router.put('/requirements', MatchingController.updateRequirements)
 
 export default router
 

@@ -11,3 +11,4 @@ router.get('/agmarknet/market-prices', ExternalDataController.getAgmarknetPrices
 router.get('/enam/market-prices', ExternalDataController.getEnamPrices)
 
 export default router
+

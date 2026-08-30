@@ -260,3 +260,4 @@ export function WeatherWidget({
     </div>
   )
 }
+

@@ -7,3 +7,4 @@ router.get('/', WeatherController.getWeather)
 router.get('/status', WeatherController.getStatus)
 
 export default router
+

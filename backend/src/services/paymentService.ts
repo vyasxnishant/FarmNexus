@@ -114,6 +114,17 @@ export class PaymentService {
       return { received: false, error: 'Invalid webhook payload structure.' }
     }
 
+    // If webhook secret configured, verify HMAC signature
+    if (config.paymentWebhookSecret && signature) {
+      const expectedSignature = crypto
+        .createHmac('sha256', config.paymentWebhookSecret)
+        .update(JSON.stringify(payload))
+        .digest('hex')
+      if (signature !== expectedSignature) {
+        throw new Error('Invalid payment webhook signature.')
+      }
+    }
+
     const { transactionId, orderId, referenceId, status } = payload
 
     if (status === 'SUCCESS' || status === 'PAID') {
@@ -125,7 +136,14 @@ export class PaymentService {
       return { received: true, processed: true, result }
     }
 
-    return { received: true, processed: false, status }
+    // Failed or Cancelled Webhook
+    const txn = inMemoryDb.transactions.find(t => t.id === transactionId)
+    if (txn && status === 'FAILED') {
+      txn.payment_status = 'Payment Failed'
+      txn.updated_at = new Date().toISOString()
+    }
+
+    return { received: true, processed: false, status: status || 'FAILED' }
   }
 
   static async getPaymentById(paymentId: string) {
