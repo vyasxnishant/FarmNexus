@@ -190,5 +190,17 @@ export class AdminController {
       next(err)
     }
   }
+
+  static async getSystemStatus(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const status = await AdminService.getSystemStatus()
+      res.json({
+        success: true,
+        data: status,
+      })
+    } catch (err) {
+      next(err)
+    }
+  }
 }
 

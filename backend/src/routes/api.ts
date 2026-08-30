@@ -17,6 +17,8 @@ import logisticsRoutes from './logisticsRoutes.js'
 import storageRoutes from './storageRoutes.js'
 import pricingIntelligenceRoutes from './pricingIntelligenceRoutes.js'
 import adminRoutes from './adminRoutes.js'
+import weatherRoutes from './weatherRoutes.js'
+import externalDataRoutes from './externalDataRoutes.js'
 
 const router = Router()
 
@@ -27,6 +29,12 @@ router.get('/health', (req, res) => {
     service: 'farmnexus-backend',
     timestamp: new Date().toISOString(),
     db: getDbStatus(),
+    integrations: {
+      agmarknet: '/api/external/market-prices',
+      enam: '/api/external/enam/market-prices',
+      weather: '/api/weather',
+      priceIntelligence: '/api/price-intelligence/:lotId',
+    },
   })
 })
 
@@ -41,6 +49,8 @@ router.use('/logistics', logisticsRoutes)
 router.use('/storage', storageRoutes)
 router.use('/price-intelligence', pricingIntelligenceRoutes)
 router.use('/admin', adminRoutes)
+router.use('/weather', weatherRoutes)
+router.use('/external', externalDataRoutes)
 
 // Market Prices Endpoints
 router.get('/market-prices', validatePriceQuery, MarketPriceController.getMarketPrices)

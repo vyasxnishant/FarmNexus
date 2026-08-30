@@ -28,5 +28,8 @@ router.post('/market-prices', AdminController.addMarketPrice)
 router.put('/market-prices/:id', AdminController.updateMarketPrice)
 router.delete('/market-prices/:id', AdminController.deleteMarketPrice)
 
+// System & Integrations Status
+router.get('/system-status', AdminController.getSystemStatus)
+
 export default router
 

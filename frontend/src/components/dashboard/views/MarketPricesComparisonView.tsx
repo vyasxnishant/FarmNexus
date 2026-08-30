@@ -31,6 +31,8 @@ import {
   type MandiMarketRecord,
   type MandiNetReturnCalculation
 } from '../../../services/mandiPriceService'
+import { WeatherWidget } from '../components/WeatherWidget'
+import { AgriMapView, type MapMarkerPoint } from '../components/AgriMapView'
 
 export function MarketPricesComparisonView() {
   const navigate = useNavigate()
@@ -405,6 +407,68 @@ export function MarketPricesComparisonView() {
               <Truck className="w-3.5 h-3.5" />
               <span>Route & Transit</span>
             </Link>
+          </div>
+        </div>
+      )}
+
+      {/* WEATHER & TRANSIT ROUTE MAP CORRIDOR */}
+      {recommendation && (
+        <div className="grid lg:grid-cols-2 gap-6">
+          {/* 1. Live Weather & Agro Advisory */}
+          <WeatherWidget
+            location={selectedLot?.location || recommendation.recommendedMandi.district + ', ' + recommendation.recommendedMandi.state}
+          />
+
+          {/* 2. OpenStreetMap Transit Route Map */}
+          <div className="bg-wheat p-6 rounded-2xl border border-soil/15 shadow-sm space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-mono uppercase tracking-wider text-soil/60 block">OPENSTREETMAP CORRIDOR</span>
+                <h4 className="font-serif text-lg font-bold text-soil flex items-center gap-1.5">
+                  <MapPin className="w-4 h-4 text-turmeric" />
+                  Transit Route to {recommendation.recommendedMandi.mandiName}
+                </h4>
+              </div>
+              <span className="font-mono text-xs font-bold px-2.5 py-1 rounded-full bg-turmeric/15 text-soil border border-turmeric/30">
+                {recommendation.recommendedMandi.distanceKm} km
+              </span>
+            </div>
+
+            <AgriMapView
+              height="280px"
+              origin={{
+                id: 'farmer-godown',
+                title: selectedLot?.pickupLocation || 'Sirali Farm Godown #2',
+                type: 'origin',
+                coordinates: [22.3167, 77.0167],
+                subtitle: selectedLot?.location || 'Sirali, Harda (MP)',
+              }}
+              destination={{
+                id: recommendation.recommendedMandi.id,
+                title: recommendation.recommendedMandi.mandiName,
+                type: 'mandi',
+                coordinates: recommendation.recommendedMandi.mandiName.toLowerCase().includes('indore')
+                  ? [22.7196, 75.8577]
+                  : recommendation.recommendedMandi.mandiName.toLowerCase().includes('ujjain')
+                  ? [23.1765, 75.7885]
+                  : recommendation.recommendedMandi.mandiName.toLowerCase().includes('bhopal')
+                  ? [23.2599, 77.4126]
+                  : [22.3395, 77.0945],
+                subtitle: `${recommendation.recommendedMandi.district}, ${recommendation.recommendedMandi.state}`,
+                badgeText: `₹${recommendation.recommendedMandi.modalPrice}/qtl`,
+              }}
+              storageFacilities={[
+                {
+                  id: 'str-harda',
+                  title: 'MPWLC Harda Warehouse',
+                  type: 'storage',
+                  coordinates: [22.3364, 77.0984],
+                  subtitle: 'WDRA Approved (1,450 MT free)',
+                  badgeText: '₹0.28/bag/day',
+                },
+              ]}
+              showRouteLine={true}
+            />
           </div>
         </div>
       )}

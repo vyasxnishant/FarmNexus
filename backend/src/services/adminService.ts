@@ -1,5 +1,8 @@
-import { inMemoryDb } from '../config/db.js'
+import { inMemoryDb, getDbStatus } from '../config/db.js'
 import { ActivityLog, MarketPriceRecord, UserStatus } from '../models/types.js'
+import { AgmarknetService } from './agmarknetService.js'
+import { EnamService } from './enamService.js'
+import { WeatherService } from './weatherService.js'
 
 export class AdminService {
   static async logActivity(action: string, adminUser: string, targetType: ActivityLog['target_type'], targetId: string, details: string) {
@@ -182,5 +185,47 @@ export class AdminService {
 
   static async getActivityLogs() {
     return inMemoryDb.activityLogs
+  }
+
+  /**
+   * System and External Data Integrations Status
+   */
+  static async getSystemStatus() {
+    const agmarknetStatus = AgmarknetService.getStatus()
+    const enamStatus = EnamService.getStatus()
+    const weatherStatus = await WeatherService.checkStatus()
+    const dbStatus = getDbStatus()
+
+    return {
+      timestamp: new Date().toISOString(),
+      services: {
+        agmarknet: {
+          name: 'AGMARKNET (data.gov.in)',
+          status: agmarknetStatus.status,
+          hasApiKey: agmarknetStatus.hasApiKey,
+          lastSync: agmarknetStatus.lastSync,
+          type: 'Government APMC Mandi Feed',
+        },
+        enam: {
+          name: 'eNAM (National Agriculture Market)',
+          status: enamStatus.status,
+          hasApiKey: enamStatus.hasApiKey,
+          endpoint: enamStatus.endpoint,
+          type: 'Electronic Trading Auction Gateway',
+        },
+        weather: {
+          name: 'Open-Meteo Agricultural Weather API',
+          status: weatherStatus.status,
+          source: weatherStatus.source,
+          latencyMs: weatherStatus.latencyMs,
+          type: 'Live Global & India Meteorological Feed',
+        },
+        database: {
+          name: 'PostgreSQL Relational DB',
+          status: dbStatus.isPostgresConnected ? 'Connected (PostgreSQL)' : 'In-Memory Store (Consistent)',
+          recordsCount: dbStatus.totalRecords,
+        },
+      },
+    }
   }
 }

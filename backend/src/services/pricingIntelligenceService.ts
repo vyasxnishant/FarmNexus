@@ -17,6 +17,9 @@ export interface MarketNetReturnCalculation {
   rank: number
   recommendation: boolean
   gainOverLocal: number
+  source: string
+  isLive: boolean
+  rationale: string
 }
 
 export class PricingIntelligenceService {
@@ -38,10 +41,9 @@ export class PricingIntelligenceService {
            lot.crop.toLowerCase().includes(p.commodity.toLowerCase())
     )
 
-    const pricesToUse = matchingPrices.length > 0 ? matchingPrices : inMemoryDb.marketPrices.slice(0, 5)
+    const pricesToUse = matchingPrices.length > 0 ? matchingPrices : inMemoryDb.marketPrices.slice(0, 6)
 
     // Standard transport calculation per distance
-    // Rate: ₹24/km with standard 4.0 MT tractor/truck baseline
     const calculations: MarketNetReturnCalculation[] = pricesToUse.map(p => {
       let distanceKm = 30
       if (p.market.includes('Harda')) distanceKm = 18
@@ -52,18 +54,13 @@ export class PricingIntelligenceService {
       else if (p.market.includes('Khandwa')) distanceKm = 95
       else if (p.market.includes('Dewas')) distanceKm = 138
 
-      const grossValue = lot.quantity_qtl * p.modal_price
+      const grossValue = Math.round(lot.quantity_qtl * p.modal_price)
+      const quantityInMT = lot.quantity_qtl / 10
 
-      // Calculate transport cost based on quantity and distance
-      // Small loads (<40 qtl): ₹18/km, Medium (<75 qtl): ₹34/km, Large: ₹52/km
-      let ratePerKm = 24
-      if (lot.quantity_qtl <= 15) ratePerKm = 18
-      else if (lot.quantity_qtl <= 40) ratePerKm = 24
-      else if (lot.quantity_qtl <= 75) ratePerKm = 34
-      else ratePerKm = 52
-
-      const transportCost = Math.round(distanceKm * ratePerKm + 500)
-      const netReturn = grossValue - transportCost
+      // Multi-axle freight model: ₹3.0/km/MT + standard handling base
+      const freightRatePerKmMt = 3.0
+      const transportCost = Math.round(distanceKm * freightRatePerKmMt * quantityInMT + 400)
+      const netReturn = Math.max(0, grossValue - transportCost)
       const netPricePerQtl = Math.round(netReturn / lot.quantity_qtl)
 
       return {
@@ -83,19 +80,32 @@ export class PricingIntelligenceService {
         rank: 1,
         recommendation: false,
         gainOverLocal: 0,
+        source: p.source || 'APMC Mandi Feed',
+        isLive: !p.is_demo,
+        rationale: '',
       }
     })
 
     // Sort by netReturn descending
     calculations.sort((a, b) => b.netReturn - a.netReturn)
 
-    const localMandiCalc = calculations.find(c => c.distanceKm <= 25) || calculations[calculations.length - 1]
-    const localNetReturn = localMandiCalc ? localMandiCalc.netReturn : calculations[0].netReturn
+    const nearestMandiCalc = [...calculations].sort((a, b) => a.distanceKm - b.distanceKm)[0]
+    const localNetReturn = nearestMandiCalc ? nearestMandiCalc.netReturn : calculations[0].netReturn
 
     calculations.forEach((c, idx) => {
       c.rank = idx + 1
       c.recommendation = idx === 0
       c.gainOverLocal = Math.max(0, c.netReturn - localNetReturn)
+
+      if (idx === 0) {
+        if (c.mandi === nearestMandiCalc?.mandi) {
+          c.rationale = `${c.mandi} offers both closest transit distance (${c.distanceKm} km) and solid modal price (₹${c.modalPrice.toLocaleString('en-IN')}/qtl), maximizing net cash return with lowest travel risk.`
+        } else {
+          c.rationale = `Higher modal price of ₹${c.modalPrice.toLocaleString('en-IN')}/qtl at ${c.mandi} outweighs extra transport cost (${c.distanceKm} km), yielding +₹${c.gainOverLocal.toLocaleString('en-IN')} additional net earnings over local mandi.`
+        }
+      } else {
+        c.rationale = `Net return ₹${c.netReturn.toLocaleString('en-IN')} (₹${c.netPricePerQtl}/qtl in-hand).`
+      }
     })
 
     return {
@@ -106,11 +116,10 @@ export class PricingIntelligenceService {
         quantityQtl: lot.quantity_qtl,
         location: lot.location,
       },
-      localMandi: localMandiCalc ? localMandiCalc.mandi : 'Harda APMC Mandi',
+      localMandi: nearestMandiCalc ? nearestMandiCalc.mandi : 'Harda APMC Mandi',
       bestMandi: calculations[0].mandi,
       maxNetGain: calculations[0].gainOverLocal,
       markets: calculations,
     }
   }
 }
-

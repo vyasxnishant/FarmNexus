@@ -2,7 +2,7 @@ import axios from 'axios'
 import { config } from '../config/env.js'
 import { normalizeGovPriceRecord } from '../utils/normalizer.js'
 import { MarketDataRepository } from './marketDataRepository.js'
-import { AgmarknetGovRecord } from '../models/types.js'
+import { AgmarknetGovRecord, MarketPriceRecord } from '../models/types.js'
 
 let lastSyncTimestamp: number | null = null
 let isSyncing = false
@@ -16,12 +16,10 @@ export class AgmarknetService {
     const cacheTtlMs = config.cacheTtlMinutes * 60 * 1000
 
     if (lastSyncTimestamp && now - lastSyncTimestamp < cacheTtlMs) {
-      // Data is fresh within TTL window
       return
     }
 
-    if (!config.dataGovInApiKey) {
-      // No API key configured; rely on baseline repository data
+    if (!config.dataGovInApiKey && !config.agmarknetApiKey) {
       return
     }
 
@@ -39,7 +37,7 @@ export class AgmarknetService {
    * Fetch daily mandi prices from data.gov.in AGMARKNET API
    */
   static async syncAgmarknetData(limit: number = 100): Promise<{ count: number; source: string; error?: string }> {
-    const apiKey = config.dataGovInApiKey.trim()
+    const apiKey = (config.dataGovInApiKey || config.agmarknetApiKey).trim()
 
     if (!apiKey) {
       console.info('[AgmarknetService] No DATA_GOV_IN_API_KEY detected. Serving baseline demo data.')
@@ -79,13 +77,13 @@ export class AgmarknetService {
       lastSyncTimestamp = Date.now()
       console.log(`[AgmarknetService] Successfully normalized and cached ${savedCount} government mandi price records.`)
 
-      return { count: savedCount, source: 'data.gov.in (AGMARKNET Live Feed)' }
+      return { count: savedCount, source: 'AGMARKNET' }
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : String(err)
       console.error(`[AgmarknetService] Government API connection error: ${errorMsg}`)
       return {
         count: 0,
-        source: 'DEMO DATA (Government API Error / 403 Forbidden)',
+        source: 'DEMO DATA (Government API Error / Key Unauthorized)',
         error: errorMsg.includes('403')
           ? 'Government API returned 403 (Key not authorised). Please verify your 56-character OGD API Key and dataset subscription at data.gov.in.'
           : errorMsg,
@@ -95,8 +93,65 @@ export class AgmarknetService {
     }
   }
 
+  /**
+   * Query filtered AGMARKNET prices with fallback
+   */
+  static async getAgmarknetPrices(filter: {
+    crop?: string
+    state?: string
+    district?: string
+    mandi?: string
+    date?: string
+    limit?: number
+  }): Promise<{ records: MarketPriceRecord[]; source: string; isLive: boolean; total: number }> {
+    await this.ensureFreshData()
+
+    const { records, total } = await MarketDataRepository.findPrices({
+      commodity: filter.crop,
+      state: filter.state,
+      district: filter.district,
+      market: filter.mandi,
+      date: filter.date,
+      limit: filter.limit || 50,
+    })
+
+    const hasLiveGov = records.some(r => r.source.includes('AGMARKNET') && !r.is_demo)
+
+    // If specific crop requested is not in today's live feed, supplement with verified APMC baseline records
+    if (records.length === 0 && filter.crop) {
+      const { seedPrices } = await import('../db/seed.js')
+      const fallbackMatches = seedPrices.filter(p =>
+        p.commodity.toLowerCase().includes(filter.crop!.toLowerCase()) ||
+        filter.crop!.toLowerCase().includes(p.commodity.toLowerCase())
+      )
+      if (fallbackMatches.length > 0) {
+        return {
+          records: fallbackMatches,
+          total: fallbackMatches.length,
+          source: 'DEMO DATA (Baseline Mandi Feed)',
+          isLive: false,
+        }
+      }
+    }
+
+    return {
+      records,
+      total,
+      source: hasLiveGov ? 'AGMARKNET' : 'DEMO DATA (Baseline Mandi Feed)',
+      isLive: hasLiveGov,
+    }
+  }
+
   static getLastSyncTime(): string | null {
     return lastSyncTimestamp ? new Date(lastSyncTimestamp).toISOString() : null
   }
-}
 
+  static getStatus(): { status: 'Connected' | 'Live' | 'Demo Fallback (No Key)' | 'Demo Fallback (Unauthorized)'; hasApiKey: boolean; lastSync: string | null } {
+    const hasKey = Boolean((config.dataGovInApiKey || config.agmarknetApiKey).trim())
+    return {
+      status: hasKey ? (lastSyncTimestamp ? 'Live' : 'Connected') : 'Demo Fallback (No Key)',
+      hasApiKey: hasKey,
+      lastSync: this.getLastSyncTime(),
+    }
+  }
+}

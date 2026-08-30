@@ -25,6 +25,7 @@ import {
   Building2
 } from 'lucide-react'
 import { useDashboard, type CropLot } from '../../../context/DashboardContext'
+import { WeatherWidget } from '../components/WeatherWidget'
 
 export function LotDetailsView() {
   const { lotId } = useParams<{ lotId: string }>()
@@ -251,6 +252,9 @@ export function LotDetailsView() {
               </div>
             </div>
           </div>
+
+          {/* Real-Time Agricultural Weather & Transit Advisory */}
+          <WeatherWidget location={lot.location} />
 
           {/* Quality Grading Scorecard */}
           <div className="bg-wheat rounded-3xl border border-soil/15 p-6 md:p-8 shadow-sm space-y-6">

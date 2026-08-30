@@ -64,7 +64,31 @@ export const marketPriceApi = {
   },
 }
 
-// 4. Buyer Matching & Requirements
+// 4. External Data APIs (AGMARKNET & eNAM)
+export const externalMarketApi = {
+  getAgmarknetPrices: async (params?: { crop?: string; state?: string; district?: string; mandi?: string; date?: string }) => {
+    const res = await apiClient.get('/external/market-prices', { params })
+    return res.data
+  },
+  getEnamPrices: async (params?: { crop?: string; state?: string; district?: string; mandi?: string }) => {
+    const res = await apiClient.get('/external/enam/market-prices', { params })
+    return res.data
+  },
+}
+
+// 5. Weather APIs
+export const weatherApi = {
+  getWeather: async (params?: { location?: string; lat?: number; lon?: number }) => {
+    const res = await apiClient.get('/weather', { params })
+    return res.data
+  },
+  getStatus: async () => {
+    const res = await apiClient.get('/weather/status')
+    return res.data
+  },
+}
+
+// 6. Buyer Matching & Requirements
 export const matchingApi = {
   getMatchingLots: async (params?: any) => {
     const res = await apiClient.get('/matching/lots', { params })
@@ -80,7 +104,7 @@ export const matchingApi = {
   },
 }
 
-// 5. Commercial Offers
+// 7. Commercial Offers
 export const offerApi = {
   create: async (payload: { lot_id: string; offered_price: number; quantity_qtl: number; payment_terms?: string; pickup_location?: string; message?: string }) => {
     const res = await apiClient.post('/offers', payload)
@@ -112,7 +136,7 @@ export const offerApi = {
   },
 }
 
-// 6. Trade Transactions
+// 8. Trade Transactions
 export const transactionApi = {
   getMyTransactions: async () => {
     const res = await apiClient.get('/transactions/my')
@@ -128,7 +152,7 @@ export const transactionApi = {
   },
 }
 
-// 7. Payments & Escrow
+// 9. Payments & Escrow
 export const paymentApi = {
   createOrder: async (transactionId: string, method?: string) => {
     const res = await apiClient.post('/payments/create', { transactionId, method })
@@ -144,7 +168,7 @@ export const paymentApi = {
   },
 }
 
-// 8. Logistics & Storage
+// 10. Logistics & Storage
 export const logisticsApi = {
   getForLot: async (lotId: string, destinationMandi?: string) => {
     const res = await apiClient.get(`/logistics/${lotId}`, { params: { destinationMandi } })
@@ -156,7 +180,7 @@ export const logisticsApi = {
   },
 }
 
-// 9. Admin Operations
+// 11. Admin Operations & System Status
 export const adminApi = {
   getUsers: async () => {
     const res = await apiClient.get('/admin/users')
@@ -198,6 +222,10 @@ export const adminApi = {
     const res = await apiClient.get('/admin/activity-logs')
     return res.data
   },
+  getSystemStatus: async () => {
+    const res = await apiClient.get('/admin/system-status')
+    return res.data
+  },
   addMarketPrice: async (payload: any) => {
     const res = await apiClient.post('/admin/market-prices', payload)
     return res.data
@@ -211,4 +239,3 @@ export const adminApi = {
     return res.data
   },
 }
-
