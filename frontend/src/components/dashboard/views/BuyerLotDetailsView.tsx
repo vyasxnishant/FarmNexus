@@ -88,6 +88,10 @@ export function BuyerLotDetailsView() {
 
   const handleSubmitOffer = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (lot.status !== 'Active') {
+      setErrors({ form: `Cannot place bid: Produce lot is '${lot.status}'. Only Active listings accept bids.` })
+      return
+    }
     if (isOwnLot) {
       setErrors({ form: 'You cannot place a purchase bid on your own produce listing.' })
       return
@@ -403,6 +407,14 @@ export function BuyerLotDetailsView() {
               <div className="p-3 bg-red-500/20 border border-red-500/40 rounded-xl text-red-200 text-xs font-body flex items-center gap-2">
                 <XCircle className="w-4 h-4 shrink-0 text-red-400" />
                 <span>{errors.form}</span>
+              </div>
+            )}
+
+            {/* Lot Inactive Warning */}
+            {lot.status !== 'Active' && (
+              <div className="p-3 bg-amber-500/20 border border-amber-500/40 rounded-xl text-amber-200 text-xs font-body flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
+                <span>This produce lot is currently {lot.status} and not accepting new bids.</span>
               </div>
             )}
 

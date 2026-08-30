@@ -27,14 +27,9 @@ export function BuyerOffersView() {
 
   // Filter offers made by the authenticated buyer
   const myOffers = offers.filter(o => {
-    if (!currentUser) return true
+    if (!currentUser) return false
     if (currentUser.user_type === 'ADMIN') return true
-    return (
-      o.buyerId === currentUser.id ||
-      o.buyerName?.toLowerCase() === currentUser.name?.toLowerCase() ||
-      (currentUser.organization && o.buyerCompany?.toLowerCase().includes(currentUser.organization.toLowerCase())) ||
-      o.buyerId === 'USR-BUY-01'
-    )
+    return o.buyerId === currentUser.id
   })
 
   const filteredOffers = myOffers.filter(offer => {
