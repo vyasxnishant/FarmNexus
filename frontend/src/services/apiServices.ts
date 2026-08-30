@@ -209,6 +209,10 @@ export const adminApi = {
     const res = await apiClient.get('/admin/users')
     return res.data
   },
+  getUserById: async (userId: string) => {
+    const res = await apiClient.get(`/admin/users/${userId}`)
+    return res.data
+  },
   verifyUser: async (id: string) => {
     const res = await apiClient.post(`/admin/users/${id}/verify`)
     return res.data

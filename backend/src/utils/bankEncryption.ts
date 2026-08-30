@@ -130,3 +130,4 @@ export function validateBankDetails(data: BankDetailsInput): { isValid: boolean;
 
   return { isValid: true }
 }
+

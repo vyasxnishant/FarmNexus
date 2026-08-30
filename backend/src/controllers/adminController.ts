@@ -17,6 +17,19 @@ export class AdminController {
     }
   }
 
+  static async getUserById(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = (req.params.userId || req.params.id) as string
+      const details = await AdminService.getUserById(userId)
+      res.json({
+        success: true,
+        data: details,
+      })
+    } catch (err) {
+      next(err)
+    }
+  }
+
   static async verifyUser(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = req.params.id as string

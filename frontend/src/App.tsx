@@ -123,7 +123,9 @@ export default function App() {
             <Route index element={<Navigate to="/admin/dashboard" replace />} />
             <Route path="dashboard" element={<AdminDashboardView />} />
             <Route path="users" element={<AdminUsersView />} />
+            <Route path="users/:userId" element={<AdminUsersView />} />
             <Route path="farmers" element={<AdminFarmersView />} />
+            <Route path="farmers/:farmerId" element={<AdminFarmersView />} />
             <Route path="buyers" element={<AdminBuyersView />} />
             <Route path="lots" element={<AdminLotsView />} />
             <Route path="market-prices" element={<AdminMarketPricesView />} />

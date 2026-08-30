@@ -9,6 +9,7 @@ router.use(authenticateToken, authorizeRole(['ADMIN']))
 
 // User actions
 router.get('/users', AdminController.getUsers)
+router.get('/users/:userId', AdminController.getUserById)
 router.post('/users/:id/verify', AdminController.verifyUser)
 router.post('/users/:id/suspend', AdminController.suspendUser)
 router.post('/users/:id/activate', AdminController.activateUser)

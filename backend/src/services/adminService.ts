@@ -37,6 +37,31 @@ export class AdminService {
     })
   }
 
+  static async getUserById(targetUserId: string) {
+    const user = inMemoryDb.users.find(u => u.id === targetUserId)
+    if (!user) {
+      throw new Error(`User not found with ID: ${targetUserId}`)
+    }
+
+    const { password_hash, ...safeUser } = user
+    const farmerProfile = inMemoryDb.farmerProfiles.find(p => p.user_id === targetUserId)
+    const buyerProfile = inMemoryDb.buyerProfiles.find(p => p.user_id === targetUserId)
+    const buyerRequirement = inMemoryDb.buyerRequirements.find(r => r.buyer_id === targetUserId)
+    const userLots = inMemoryDb.lots.filter(l => l.farmer_id === targetUserId)
+    const userOffers = inMemoryDb.offers.filter(o => o.buyer_id === targetUserId || userLots.some(l => l.id === o.lot_id))
+    const userTransactions = inMemoryDb.transactions.filter(t => t.farmer_id === targetUserId || t.buyer_id === targetUserId)
+
+    return {
+      user: safeUser,
+      farmerProfile: farmerProfile || null,
+      buyerProfile: buyerProfile || null,
+      buyerRequirement: buyerRequirement || null,
+      lots: userLots,
+      offers: userOffers,
+      transactions: userTransactions,
+    }
+  }
+
   static async updateUserStatus(userId: string, status: UserStatus, adminUser: string) {
     const user = inMemoryDb.users.find(u => u.id === userId)
     if (!user) {

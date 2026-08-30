@@ -9,3 +9,4 @@ router.get('/', authenticateToken, authorizeRole(['FARMER', 'ADMIN']), BankContr
 router.put('/', authenticateToken, authorizeRole(['FARMER']), BankController.updateBankDetails)
 
 export default router
+

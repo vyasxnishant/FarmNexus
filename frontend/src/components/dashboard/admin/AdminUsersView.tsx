@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
 import {
   Users,
   Search,
@@ -25,6 +26,8 @@ import { useDashboard, type UserRecord, type CropLot, type Offer, type FarmTrans
 import { adminApi } from '../../../services/apiServices'
 
 export function AdminUsersView() {
+  const { userId } = useParams<{ userId?: string }>()
+  const navigate = useNavigate()
   const { users, updateUserStatus, verifyUser, lots, offers, transactions } = useDashboard()
 
   const [dbUsers, setDbUsers] = useState<UserRecord[]>(users)
@@ -71,6 +74,37 @@ export function AdminUsersView() {
     }
     fetchUsers()
   }, [])
+
+  // Auto-open target user if userId URL parameter is present
+  useEffect(() => {
+    if (userId) {
+      const loadTargetUser = async () => {
+        try {
+          const res = await adminApi.getUserById(userId)
+          if (res.data?.user) {
+            const u = res.data.user
+            setSelectedUser({
+              id: u.id,
+              name: u.name,
+              email: u.email,
+              phone: u.phone,
+              userType: u.user_type === 'FARMER' ? 'Farmer' : u.user_type === 'BUYER' ? 'Buyer' : 'Admin',
+              location: u.location || 'Madhya Pradesh',
+              district: u.district || 'Harda',
+              state: u.state || 'Madhya Pradesh',
+              registeredDate: u.created_at ? new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '2026',
+              status: u.status || 'Active',
+              kycVerified: Boolean(u.kyc_verified),
+              organization: u.organization,
+            })
+          }
+        } catch (err) {
+          console.warn('[AdminUsersView] Failed to load target user from param:', err)
+        }
+      }
+      loadTargetUser()
+    }
+  }, [userId])
 
   const currentUsersList = dbUsers.length > 0 ? dbUsers : users
 
