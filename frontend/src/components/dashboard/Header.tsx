@@ -35,11 +35,16 @@ export function Header({
     navigate('/login', { replace: true })
   }
 
-  const getInitials = (name?: string) => {
-    if (!name) return 'FN'
-    const parts = name.trim().split(' ')
-    if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
-    return name.slice(0, 2).toUpperCase()
+  const getInitials = (name?: string | null): string => {
+    if (!name || typeof name !== 'string') return 'FN'
+    const parts = name.trim().split(/\s+/).filter(Boolean)
+    if (parts.length === 0) return 'FN'
+    if (parts.length === 1) {
+      return parts[0].slice(0, 2).toUpperCase()
+    }
+    const first = parts[0].charAt(0)
+    const second = parts[1].charAt(0)
+    return `${first}${second}`.toUpperCase()
   }
 
   return (

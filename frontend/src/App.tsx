@@ -107,6 +107,10 @@ export default function App() {
             <Route path="offers" element={<BuyerOffersView />} />
             <Route path="transactions" element={<TransactionsView isBuyer />} />
             <Route path="transactions/:transactionId" element={<TransactionDetailsView />} />
+            <Route path="logistics" element={<LogisticsView />} />
+            <Route path="storage" element={<StorageView />} />
+            <Route path="market-intelligence" element={<MarketIntelligenceView />} />
+            <Route path="market-prices" element={<MarketPricesComparisonView />} />
             <Route path="notifications" element={<NotificationsView />} />
             <Route path="profile" element={<ProfileView />} />
           </Route>
