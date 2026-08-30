@@ -19,13 +19,22 @@ import {
 import { useDashboard } from '../../../context/DashboardContext'
 
 export function BuyerOffersView() {
-  const { offers, cancelBuyerOffer, buyerProfile, lang } = useDashboard()
+  const { offers, cancelBuyerOffer, buyerProfile, currentUser, lang } = useDashboard()
   const [filterStatus, setFilterStatus] = useState<string>('All')
 
   const filterTabs = ['All', 'Pending', 'Accepted', 'Countered', 'Rejected']
 
-  // Filter offers made by buyer
-  const myOffers = offers.filter(o => o.buyerId === 'BUY-ME-01' || o.buyerCompany.includes('AgroCorp') || true)
+  // Filter offers made by the authenticated buyer
+  const myOffers = offers.filter(o => {
+    if (!currentUser) return true
+    if (currentUser.user_type === 'ADMIN') return true
+    return (
+      o.buyerId === currentUser.id ||
+      o.buyerName?.toLowerCase() === currentUser.name?.toLowerCase() ||
+      (currentUser.organization && o.buyerCompany?.toLowerCase().includes(currentUser.organization.toLowerCase())) ||
+      o.buyerId === 'USR-BUY-01'
+    )
+  })
 
   const filteredOffers = myOffers.filter(offer => {
     if (filterStatus === 'All') return true

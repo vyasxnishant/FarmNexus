@@ -342,11 +342,11 @@ export function BuyerBrowseLotsView() {
                   </Link>
 
                   <Link
-                    to={`/buyer/lots/${lot.id}?action=offer`}
+                    to={`/buyer/lots/${lot.id}?action=buy`}
                     className="px-4 py-2 rounded-xl bg-turmeric text-monsoon font-body text-xs font-bold hover:bg-turmeric/90 active:bg-turmeric/80 transition-all flex items-center gap-1.5 shadow-sm"
                   >
                     <Tag className="w-3.5 h-3.5" />
-                    <span>Make Offer</span>
+                    <span>Buy / Place Bid</span>
                   </Link>
                 </div>
               </div>

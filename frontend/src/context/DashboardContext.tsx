@@ -13,6 +13,7 @@ export type QuantityUnit = 'Quintal' | 'Kg' | 'Tonne'
 export interface CropLot {
   id: string
   farmerId?: string
+  farmerName?: string
   crop: string
   cropHi?: string
   category?: string
@@ -1059,7 +1060,8 @@ export function useDashboard() {
 function mapBackendLot(l: any): CropLot {
   return {
     id: l.id,
-    farmerId: l.farmer_id,
+    farmerId: l.farmer_id || l.farmerId,
+    farmerName: l.farmer_name || l.farmerName || 'Verified Regional Farmer',
     crop: l.crop,
     cropHi: l.crop_hi,
     category: l.category,

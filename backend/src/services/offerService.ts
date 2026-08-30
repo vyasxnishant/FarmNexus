@@ -16,6 +16,10 @@ export class OfferService {
       throw new Error(`Lot not found with ID: ${data.lot_id}`)
     }
 
+    if (lot.farmer_id === buyerId) {
+      throw new Error('Unauthorized: You cannot place a purchase bid on your own produce listing.')
+    }
+
     if (lot.status !== 'Active') {
       throw new Error(`Cannot place offer: Lot status is '${lot.status}'. Offers are only accepted on active listings.`)
     }

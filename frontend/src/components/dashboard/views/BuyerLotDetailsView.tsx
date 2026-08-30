@@ -17,7 +17,9 @@ import {
   AlertCircle,
   FileText,
   Loader2,
-  Check
+  Check,
+  User,
+  XCircle
 } from 'lucide-react'
 import { useDashboard } from '../../../context/DashboardContext'
 
@@ -25,10 +27,10 @@ export function BuyerLotDetailsView() {
   const { lotId } = useParams<{ lotId: string }>()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const { getLotById, buyerRequirement, calculateLotMatchScore, makeBuyerOffer, buyerProfile, lang } = useDashboard()
+  const { getLotById, buyerRequirement, calculateLotMatchScore, makeBuyerOffer, currentUser, buyerProfile, lang } = useDashboard()
 
   const lot = lotId ? getLotById(lotId) : undefined
-  const shouldOpenOffer = searchParams.get('action') === 'offer'
+  const shouldOpenOffer = searchParams.get('action') === 'offer' || searchParams.get('action') === 'buy'
 
   // Offer Form State
   const [offeredPrice, setOfferedPrice] = useState<number>(lot?.expectedPrice || 2750)
@@ -39,6 +41,8 @@ export function BuyerLotDetailsView() {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showSuccessToast, setShowSuccessToast] = useState(false)
+
+  const isOwnLot = Boolean(currentUser && (currentUser.id === lot?.farmerId || (lot?.farmerName && currentUser.name === lot.farmerName)))
 
   useEffect(() => {
     if (lot) {
@@ -82,14 +86,19 @@ export function BuyerLotDetailsView() {
     return Object.keys(errs).length === 0
   }
 
-  const handleSubmitOffer = (e: React.FormEvent) => {
+  const handleSubmitOffer = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (isOwnLot) {
+      setErrors({ form: 'You cannot place a purchase bid on your own produce listing.' })
+      return
+    }
     if (!validateOffer()) return
 
     setIsSubmitting(true)
+    setErrors({})
 
-    setTimeout(() => {
-      makeBuyerOffer({
+    try {
+      await makeBuyerOffer({
         lotId: lot.id,
         offeredPrice,
         quantityQtl: offeredQuantity,
@@ -102,8 +111,11 @@ export function BuyerLotDetailsView() {
 
       setTimeout(() => {
         navigate('/buyer/offers')
-      }, 1200)
-    }, 600)
+      }, 1000)
+    } catch (err: any) {
+      setErrors({ form: err.response?.data?.message || err.message || 'Failed to submit bid to farmer.' })
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -167,6 +179,23 @@ export function BuyerLotDetailsView() {
         <div className="lg:col-span-7 space-y-6">
           {/* Produce Specifications Card */}
           <div className="bg-wheat rounded-3xl border border-soil/15 p-6 md:p-8 shadow-sm space-y-6">
+            {/* Farmer / Producer Header Card */}
+            <div className="p-4 bg-soil/5 rounded-2xl border border-soil/10 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-monsoon text-turmeric flex items-center justify-center font-bold">
+                  <User className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="font-body text-[10px] text-soil/50 uppercase tracking-wider block">PRODUCER / SELLER</span>
+                  <span className="font-serif text-base font-bold text-soil">{lot.farmerName || 'Verified Regional Farmer'}</span>
+                </div>
+              </div>
+              <div className="text-right font-mono text-xs">
+                <span className="text-soil/50 block text-[10px] uppercase">ASKING PRICE</span>
+                <span className="font-bold text-turmeric text-sm">₹{lot.expectedPrice.toLocaleString('en-IN')}/qtl</span>
+              </div>
+            </div>
+
             <div className="flex items-center gap-3 pb-4 border-b border-soil/10">
               <div className="p-2.5 bg-monsoon text-wheat rounded-2xl">
                 <Sprout className="w-5 h-5 text-turmeric" />
@@ -369,6 +398,22 @@ export function BuyerLotDetailsView() {
               </span>
             </div>
 
+            {/* Form Error Banner */}
+            {errors.form && (
+              <div className="p-3 bg-red-500/20 border border-red-500/40 rounded-xl text-red-200 text-xs font-body flex items-center gap-2">
+                <XCircle className="w-4 h-4 shrink-0 text-red-400" />
+                <span>{errors.form}</span>
+              </div>
+            )}
+
+            {/* Own Lot Warning */}
+            {isOwnLot && (
+              <div className="p-3 bg-amber-500/20 border border-amber-500/40 rounded-xl text-amber-200 text-xs font-body flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
+                <span>You own this listing and cannot place a purchase bid on your own lot.</span>
+              </div>
+            )}
+
             {/* Make Offer Form */}
             <form onSubmit={handleSubmitOffer} className="space-y-4">
               {/* Offer Price Input */}
@@ -458,20 +503,23 @@ export function BuyerLotDetailsView() {
                 </span>
               </div>
 
-              {/* Submit Offer Button */}
+              {/* Submit Bid / Buy Button */}
               <button
                 type="submit"
-                disabled={isSubmitting || lot.status !== 'Active'}
+                disabled={isSubmitting || lot.status !== 'Active' || isOwnLot}
                 className="w-full py-3.5 px-4 rounded-xl bg-turmeric text-monsoon font-body text-xs font-bold hover:bg-turmeric/90 active:bg-turmeric/80 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md disabled:opacity-50"
               >
                 {isSubmitting ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Submitting Bid to Farmer...</span>
+                  </>
                 ) : (
-                  <Send className="w-4 h-4" />
+                  <>
+                    <Send className="w-4 h-4" />
+                    <span>Submit Bid / Buy</span>
+                  </>
                 )}
-                <span>
-                  {lot.status !== 'Active' ? `Lot is currently ${lot.status}` : 'Submit Binding Bid to Farmer'}
-                </span>
               </button>
             </form>
           </div>
