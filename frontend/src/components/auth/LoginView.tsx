@@ -6,10 +6,7 @@ import {
   ArrowRight,
   ShieldCheck,
   AlertCircle,
-  RefreshCw,
-  Sprout,
-  Building2,
-  UserCheck
+  RefreshCw
 } from 'lucide-react'
 import { useDashboard } from '../../context/DashboardContext'
 
@@ -37,9 +34,9 @@ export function LoginView() {
 
     try {
       const user = await login(email.trim(), password)
-      
-      // Determine redirect path
-      if (from) {
+
+      // Determine redirect path based strictly on server database role
+      if (from && !from.startsWith('/admin')) {
         navigate(from, { replace: true })
       } else if (user.user_type === 'FARMER') {
         navigate('/farmer', { replace: true })
@@ -58,19 +55,17 @@ export function LoginView() {
     }
   }
 
-  const handleQuickFill = (roleEmail: string) => {
-    setEmail(roleEmail)
-    setPassword('password123')
-    setError(null)
-  }
-
   return (
     <div className="min-h-screen bg-monsoon flex flex-col justify-between relative overflow-hidden py-12 px-6">
       {/* Background Graphic Accents */}
-      <div className="absolute inset-0 opacity-10 pointer-events-none" style={{
-        backgroundImage: 'radial-gradient(circle, #5FD0C0 1px, transparent 1px), radial-gradient(circle, #E4A335 1px, transparent 1px)',
-        backgroundSize: '40px 40px, 60px 60px',
-      }} />
+      <div
+        className="absolute inset-0 opacity-10 pointer-events-none"
+        style={{
+          backgroundImage:
+            'radial-gradient(circle, #5FD0C0 1px, transparent 1px), radial-gradient(circle, #E4A335 1px, transparent 1px)',
+          backgroundSize: '40px 40px, 60px 60px',
+        }}
+      />
 
       {/* Header with Logo */}
       <div className="relative z-10 max-w-md w-full mx-auto text-center">
@@ -101,13 +96,13 @@ export function LoginView() {
             <p className="font-body text-xs text-soil/70">
               {lang === 'en'
                 ? 'Enter your registered credentials to access your portal'
-                : 'अपने पोर्टल तक पहुंचने के लिए क्रेडेंशियल दर्ज करें'}
+                : 'अपने पोर्टल तक पहुंचने के लिए पंजीकृत क्रेडेंशियल दर्ज करें'}
             </p>
           </div>
 
           {error && (
-            <div className="p-3.5 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-700 text-xs font-body flex items-start gap-2.5">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-700 text-xs font-body flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{error}</span>
             </div>
           )}
@@ -122,7 +117,7 @@ export function LoginView() {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. ramesh@farmnexus.in"
+                  placeholder="e.g. name@farmnexus.in / 9826144520"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full bg-soil/5 border border-soil/15 rounded-xl pl-10 pr-4 py-2.5 font-body text-sm text-soil focus-visible:ring-2 focus-visible:ring-turmeric focus-visible:outline-none"
@@ -169,39 +164,6 @@ export function LoginView() {
             </button>
           </form>
 
-          {/* Demo Account Quick-Fill Helper for Testing */}
-          <div className="pt-4 border-t border-soil/10 space-y-2">
-            <span className="text-[10px] font-mono uppercase tracking-wider text-soil/50 block text-center">
-              TEST / DEMO QUICK LOGIN
-            </span>
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() => handleQuickFill('ramesh@farmnexus.in')}
-                className="p-2 rounded-xl bg-soil/5 hover:bg-soil/10 border border-soil/10 text-center transition-all text-xs font-body cursor-pointer"
-              >
-                <Sprout className="w-3.5 h-3.5 text-turmeric mx-auto mb-1" />
-                <span className="font-bold text-[11px] block text-soil">Farmer</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickFill('buyer@agrocorp.com')}
-                className="p-2 rounded-xl bg-soil/5 hover:bg-soil/10 border border-soil/10 text-center transition-all text-xs font-body cursor-pointer"
-              >
-                <Building2 className="w-3.5 h-3.5 text-[#5FD0C0] mx-auto mb-1" />
-                <span className="font-bold text-[11px] block text-soil">Buyer</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickFill('admin@farmnexus.in')}
-                className="p-2 rounded-xl bg-soil/5 hover:bg-soil/10 border border-soil/10 text-center transition-all text-xs font-body cursor-pointer"
-              >
-                <UserCheck className="w-3.5 h-3.5 text-monsoon mx-auto mb-1" />
-                <span className="font-bold text-[11px] block text-soil">Admin</span>
-              </button>
-            </div>
-          </div>
-
           <div className="text-center pt-2">
             <p className="font-body text-xs text-soil/70">
               Don't have an account?{' '}
@@ -220,4 +182,3 @@ export function LoginView() {
     </div>
   )
 }
-
