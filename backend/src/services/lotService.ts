@@ -92,6 +92,7 @@ export class LotService {
       category: data.category || 'Grains & Cereals',
       variety: data.variety || 'Standard FAQ',
       quantity_qtl: Number(data.quantity_qtl) || 100,
+      initial_quantity_qtl: Number(data.initial_quantity_qtl) || Number(data.quantity_qtl) || 100,
       unit: data.unit || 'Quintal',
       grade: data.grade || 'Grade A',
       expected_price: Number(data.expected_price) || 2700,

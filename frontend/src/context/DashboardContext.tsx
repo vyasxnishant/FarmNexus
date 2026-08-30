@@ -19,6 +19,7 @@ export interface CropLot {
   category?: string
   variety: string
   quantityQtl: number
+  initialQuantityQtl?: number
   unit: QuantityUnit
   grade: QualityGrade
   visualQuality?: VisualQuality
@@ -1081,6 +1082,7 @@ function mapBackendLot(l: any): CropLot {
     category: l.category,
     variety: l.variety,
     quantityQtl: Number(l.quantity_qtl) || 0,
+    initialQuantityQtl: Number(l.initial_quantity_qtl) || Number(l.quantity_qtl) || 100,
     unit: l.unit || 'Quintal',
     grade: l.grade || 'Grade A',
     visualQuality: l.quality?.visual_quality || 'Good',

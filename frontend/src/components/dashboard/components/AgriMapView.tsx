@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useId } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { Navigation, MapPin, AlertTriangle, RefreshCw } from 'lucide-react'
+import { Navigation } from 'lucide-react'
 
 export interface MapMarkerPoint {
   id: string
@@ -38,40 +38,38 @@ export function AgriMapView({
 }: AgriMapViewProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<L.Map | null>(null)
-  const [mapReady, setMapReady] = useState(false)
   const [initError, setInitError] = useState<string | null>(null)
   const uniqueId = useId().replace(/:/g, '')
 
-  // Create a serializable representation of inputs to avoid stale reference loops
-  const originCoordKey = origin && isValidCoordinates(origin.coordinates) ? origin.coordinates.join(',') : ''
-  const destCoordKey = destination && isValidCoordinates(destination.coordinates) ? destination.coordinates.join(',') : ''
+  // Create serializable keys to prevent infinite loops on object reference changes
+  const originCoordKey = origin && isValidCoordinates(origin.coordinates) ? `${origin.id}-${origin.coordinates.join(',')}` : ''
+  const destCoordKey = destination && isValidCoordinates(destination.coordinates) ? `${destination.id}-${destination.coordinates.join(',')}` : ''
   const storageKeys = storageFacilities.filter(s => isValidCoordinates(s.coordinates)).map(s => `${s.id}-${s.coordinates.join(',')}`).join('|')
 
   useEffect(() => {
     const container = mapContainerRef.current
     if (!container) return
 
-    let isMounted = true
     setInitError(null)
 
-    // 1. Teardown any existing Leaflet map on this container
+    // 1. Teardown any existing Leaflet map instance on this container
     if (mapInstanceRef.current) {
       try {
         mapInstanceRef.current.remove()
       } catch {
-        // ignore teardown error
+        // ignore
       }
       mapInstanceRef.current = null
     }
 
-    // Clear Leaflet internal DOM tracking ID to prevent "Map container is already initialized"
+    // Reset Leaflet internal DOM tracking property to prevent "Map container is already initialized"
     if ((container as any)._leaflet_id) {
       (container as any)._leaflet_id = null
     }
 
     try {
-      // Determine default center
-      let initialCenter: [number, number] = [22.3395, 77.0945] // Default MP Center (Harda / Sirali)
+      // Determine default center coordinates
+      let initialCenter: [number, number] = [23.4000, 77.2000] // Central Madhya Pradesh
       if (origin && isValidCoordinates(origin.coordinates)) {
         initialCenter = origin.coordinates
       } else if (destination && isValidCoordinates(destination.coordinates)) {
@@ -83,25 +81,26 @@ export function AgriMapView({
       // Initialize Leaflet Map Instance
       const map = L.map(container, {
         center: initialCenter,
-        zoom: 9,
+        zoom: 8,
         zoomControl: true,
-        attributionControl: false,
+        attributionControl: true,
         fadeAnimation: true,
         zoomAnimation: true,
       })
 
       mapInstanceRef.current = map
 
-      // OpenStreetMap Standard Tile Layer
-      const tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}.png', {
+      // OpenStreetMap Standard Tile Layer with {z}/{x}/{y}.png
+      const tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
         subdomains: ['a', 'b', 'c'],
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         crossOrigin: true,
       })
 
       tileLayer.addTo(map)
 
-      // Helper for custom HTML marker icons
+      // Custom marker icon helper
       const createCustomIcon = (type: 'origin' | 'mandi' | 'storage', title: string) => {
         let bgColor = '#E4A335'
         let iconSymbol = '🌾'
@@ -124,22 +123,21 @@ export function AgriMapView({
               display: flex;
               align-items: center;
               justify-content: center;
-              width: 32px;
-              height: 32px;
+              width: 34px;
+              height: 34px;
               border-radius: 50%;
               background-color: ${bgColor};
               color: #ffffff;
               border: 2px solid ${borderColor};
               box-shadow: 0 4px 10px rgba(0,0,0,0.35);
-              font-size: 14px;
+              font-size: 15px;
               cursor: pointer;
-              transform: translate3d(0,0,0);
             " title="${title}">
               ${iconSymbol}
             </div>
           `,
-          iconSize: [32, 32],
-          iconAnchor: [16, 16],
+          iconSize: [34, 34],
+          iconAnchor: [17, 17],
           popupAnchor: [0, -18],
         })
       }
@@ -153,7 +151,7 @@ export function AgriMapView({
         }).addTo(map)
 
         originMarker.bindPopup(`
-          <div style="font-family: sans-serif; padding: 4px; min-width: 170px;">
+          <div style="font-family: sans-serif; padding: 4px; min-width: 180px;">
             <span style="font-size: 10px; font-weight: bold; color: #E4A335; text-transform: uppercase; display: block; letter-spacing: 0.5px;">🌾 FARMER GODOWN (ORIGIN)</span>
             <h4 style="margin: 3px 0 2px; font-size: 13px; font-weight: bold; color: #152A26;">${origin.title}</h4>
             <p style="margin: 0; font-size: 11px; color: #555;">${origin.subtitle || 'Harvest Collection Location'}</p>
@@ -180,16 +178,16 @@ export function AgriMapView({
 
         allBounds.push(destination.coordinates)
 
-        // 3. Draw Route Polyline
+        // 3. Draw Route Polyline if both origin and destination exist
         if (origin && isValidCoordinates(origin.coordinates) && showRouteLine) {
           // Shadow outer line
           L.polyline([origin.coordinates, destination.coordinates], {
             color: '#152A26',
             weight: 6,
-            opacity: 0.4,
+            opacity: 0.45,
           }).addTo(map)
 
-          // Glowing active dash line
+          // Glowing active transit dash line
           const routeLine = L.polyline([origin.coordinates, destination.coordinates], {
             color: '#E4A335',
             weight: 4,
@@ -221,31 +219,27 @@ export function AgriMapView({
         allBounds.push(fac.coordinates)
       })
 
-      // Fit map viewport to encompass all plotted points
+      // Fit map viewport automatically so both locations and route are visible
       if (allBounds.length > 1) {
-        map.fitBounds(allBounds as L.LatLngBoundsExpression, { padding: [40, 40], maxZoom: 12 })
+        map.fitBounds(allBounds as L.LatLngBoundsExpression, { padding: [50, 50], maxZoom: 13 })
       } else if (allBounds.length === 1) {
         map.setView(allBounds[0] as L.LatLngExpression, 10)
       }
 
-      // Invalidate map size after DOM layout computes
+      // Invalidate map size after layout stabilizes
       const timer1 = setTimeout(() => {
         if (mapInstanceRef.current) {
           mapInstanceRef.current.invalidateSize()
         }
-      }, 60)
+      }, 80)
 
       const timer2 = setTimeout(() => {
         if (mapInstanceRef.current) {
           mapInstanceRef.current.invalidateSize()
         }
-      }, 250)
+      }, 280)
 
-      if (isMounted) {
-        setMapReady(true)
-      }
-
-      // ResizeObserver to automatically resize map when container size changes
+      // ResizeObserver to automatically resize map if container changes
       let resizeObserver: ResizeObserver | null = null
       if (typeof ResizeObserver !== 'undefined' && container) {
         resizeObserver = new ResizeObserver(() => {
@@ -257,7 +251,6 @@ export function AgriMapView({
       }
 
       return () => {
-        isMounted = false
         clearTimeout(timer1)
         clearTimeout(timer2)
         if (resizeObserver) {
@@ -278,14 +271,13 @@ export function AgriMapView({
     } catch (err: any) {
       console.warn('Leaflet map initialization notice:', err)
       setInitError(err.message || 'Map rendering fallback active')
-      setMapReady(true)
     }
   }, [originCoordKey, destCoordKey, storageKeys, showRouteLine, height])
 
   return (
     <div
       className={`relative rounded-2xl overflow-hidden border border-soil/15 shadow-sm bg-[#f3e9d2] ${className}`}
-      style={{ minHeight: height, height }}
+      style={{ minHeight: height, height, width: '100%' }}
     >
       {/* Map DOM Element */}
       <div

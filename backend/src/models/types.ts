@@ -100,6 +100,7 @@ export interface CropLot {
   category: string
   variety: string
   quantity_qtl: number
+  initial_quantity_qtl?: number
   unit: string
   grade: QualityGrade
   expected_price: number

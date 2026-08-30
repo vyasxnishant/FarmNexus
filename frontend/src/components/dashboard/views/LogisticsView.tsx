@@ -27,9 +27,22 @@ import {
 } from '../../../services/logisticsService'
 import { AgriMapView, type MapMarkerPoint } from '../components/AgriMapView'
 
+function getOriginCoords(locStr?: string): [number, number] {
+  if (!locStr) return [24.4925, 77.2917] // Myana Farm Godown #2, Guna
+  const l = locStr.toLowerCase()
+  if (l.includes('guna') || l.includes('myana')) return [24.4925, 77.2917]
+  if (l.includes('sirali')) return [22.2850, 77.0120]
+  if (l.includes('harda')) return [22.3395, 77.0945]
+  if (l.includes('hoshangabad') || l.includes('narmadapuram')) return [22.7510, 77.7290]
+  if (l.includes('indore')) return [22.7196, 75.8577]
+  if (l.includes('bhopal')) return [23.2599, 77.4126]
+  if (l.includes('ujjain')) return [23.1765, 75.7885]
+  return [24.4925, 77.2917] // Default Guna / Myana
+}
+
 export function LogisticsView() {
   const [searchParams] = useSearchParams()
-  const { lots, lang } = useDashboard()
+  const { lots, transactions, offers, lang } = useDashboard()
 
   const lotIdParam = searchParams.get('lotId')
   const mandiParam = searchParams.get('mandi')
@@ -40,6 +53,15 @@ export function LogisticsView() {
   )
 
   const activeLot = lots.find(l => l.id === selectedLotId) || lots[0]
+
+  // Traded deal or matching transaction for this lot
+  const matchingTransaction = transactions.find(t => t.lotId === activeLot?.id)
+  const matchingOffer = offers.find(o => o.lotId === activeLot?.id && o.status === 'Accepted')
+
+  // Traded lot quantity in Quintals (consistent across state and never 0)
+  const quantityQtl = matchingTransaction?.quantityQtl 
+    || matchingOffer?.quantityQtl 
+    || (activeLot?.quantityQtl && activeLot.quantityQtl > 0 ? activeLot.quantityQtl : (activeLot?.initialQuantityQtl || 100))
 
   // Available Mandi Destinations
   const mandiOptions = useMemo(() => {
@@ -63,9 +85,6 @@ export function LogisticsView() {
 
   const selectedVehicle = transportVehicles.find(v => v.type === selectedVehicleType) || transportVehicles[2]
 
-  // Quantity in Quintals
-  const quantityQtl = activeLot ? activeLot.quantityQtl : 100
-
   // Calculate Transport Cost Breakdown
   const transportCostBreakdown = useMemo(() => {
     return calculateTransportCost(selectedMandi.distanceKm, selectedVehicle, quantityQtl)
@@ -82,12 +101,15 @@ export function LogisticsView() {
   const [bookingSuccess, setBookingSuccess] = useState(false)
 
   // Map Markers
+  const originLocationName = activeLot?.pickupLocation || activeLot?.location || 'Myana Farm Godown #2, Guna'
+  const originCoordinates = getOriginCoords(originLocationName)
+
   const originMarker: MapMarkerPoint = {
     id: 'origin-godown',
-    title: activeLot ? activeLot.location : 'Sirali Farm Godown #2',
+    title: originLocationName,
     type: 'origin',
-    coordinates: [22.285, 77.012], // Sirali coordinates
-    subtitle: `${activeLot ? activeLot.crop : 'Wheat'} (${quantityQtl} qtl ready for dispatch)`,
+    coordinates: originCoordinates,
+    subtitle: `${activeLot ? activeLot.crop : 'Soybean'} (${quantityQtl} Quintal ready for dispatch)`,
   }
 
   const destinationMarker: MapMarkerPoint = {
@@ -159,11 +181,16 @@ export function LogisticsView() {
               onChange={(e) => setSelectedLotId(e.target.value)}
               className="w-full px-3.5 py-2.5 rounded-xl bg-soil/5 border border-soil/15 font-body text-xs font-semibold text-soil focus:outline-none focus:border-turmeric cursor-pointer"
             >
-              {lots.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.id} — {l.crop} ({l.quantityQtl} {l.unit || 'qtl'})
-                </option>
-              ))}
+              {lots.map((l) => {
+                const lotMatchTx = transactions.find(t => t.lotId === l.id)
+                const lotMatchOff = offers.find(o => o.lotId === l.id && o.status === 'Accepted')
+                const displayQty = lotMatchTx?.quantityQtl || lotMatchOff?.quantityQtl || (l.quantityQtl > 0 ? l.quantityQtl : (l.initialQuantityQtl || 100))
+                return (
+                  <option key={l.id} value={l.id}>
+                    {l.id} — {l.crop} ({displayQty} {l.unit || 'Quintal'}) {l.status === 'Sold' ? '• Traded' : ''}
+                  </option>
+                )
+              })}
             </select>
           </div>
 
@@ -223,7 +250,7 @@ export function LogisticsView() {
             <AgriMapView
               origin={originMarker}
               destination={destinationMarker}
-              height="300px"
+              height="320px"
               showRouteLine={true}
             />
 
@@ -231,7 +258,7 @@ export function LogisticsView() {
               <div className="flex items-center gap-1.5">
                 <MapPin className="w-4 h-4 text-turmeric flex-shrink-0" />
                 <span className="font-semibold text-soil">Origin:</span>
-                <span className="truncate">{activeLot ? activeLot.location : 'Sirali Farm Godown'}</span>
+                <span className="truncate">{originLocationName}</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <span className="font-semibold text-soil">Destination:</span>
@@ -250,7 +277,7 @@ export function LogisticsView() {
                 </h3>
               </div>
               <span className="text-xs font-body text-soil/60">
-                Capacity based on {quantityQtl} qtl lot
+                Capacity based on {quantityQtl} Quintal lot
               </span>
             </div>
 
@@ -434,7 +461,7 @@ export function LogisticsView() {
 
                 <div className="p-3 bg-soil/5 rounded-xl border border-soil/10 space-y-1 text-xs font-body text-soil">
                   <p><span className="font-bold">Carrier:</span> {selectedVehicle.name}</p>
-                  <p><span className="font-bold">Route:</span> {activeLot?.location} &rarr; {selectedMandi.name} ({selectedMandi.distanceKm} km)</p>
+                  <p><span className="font-bold">Route:</span> {originLocationName} &rarr; {selectedMandi.name} ({selectedMandi.distanceKm} km)</p>
                   <p><span className="font-bold">Estimated Cost:</span> ₹{transportCostBreakdown.totalCost.toLocaleString('en-IN')}</p>
                 </div>
 

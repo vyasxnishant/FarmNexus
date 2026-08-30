@@ -108,6 +108,9 @@ export class OfferService {
     offer.updated_at = new Date().toISOString()
 
     // 2. Update lot remaining quantity & status
+    if (!lot.initial_quantity_qtl) {
+      lot.initial_quantity_qtl = lot.quantity_qtl
+    }
     const remainingQty = Math.max(0, lot.quantity_qtl - offer.quantity_qtl)
     lot.quantity_qtl = remainingQty
 
