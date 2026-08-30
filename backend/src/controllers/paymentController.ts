@@ -140,6 +140,22 @@ export class PaymentController {
   }
 
   /**
+   * Get payment & escrow status for a Deal / Transaction
+   */
+  static async getPaymentByDealId(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const dealId = (req.params.dealId || req.params.transactionId || req.params.id) as string
+      const paymentStatus = await PaymentService.getPaymentByDealId(dealId)
+      res.json({
+        success: true,
+        data: paymentStatus,
+      })
+    } catch (err: any) {
+      res.status(404).json({ success: false, message: err.message })
+    }
+  }
+
+  /**
    * Get single payment record
    */
   static async getPaymentById(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {

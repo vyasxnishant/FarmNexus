@@ -358,6 +358,29 @@ export class PaymentService {
     return { received: true, processed: false, eventType }
   }
 
+  static async getPaymentByDealId(dealId: string) {
+    const payment = inMemoryDb.payments.find(p => p.transaction_id === dealId)
+    const txn = inMemoryDb.transactions.find(t => t.id === dealId)
+    if (!payment && !txn) {
+      throw new Error(`No payment or deal record found for Deal ID: ${dealId}`)
+    }
+    const isFunded = txn?.payment_status === 'Payment Successful' || txn?.timeline.find(s => s.stage === 'escrow_funded')?.completed === true
+    return {
+      dealId,
+      paymentId: payment?.id || null,
+      orderId: payment?.order_id || null,
+      amount: txn?.final_amount || payment?.amount || 0,
+      currency: 'INR',
+      paymentStatus: txn?.payment_status || payment?.status || 'Payment Pending',
+      escrowStatus: isFunded ? 'FUNDED' : 'PENDING',
+      gatewayPaymentId: payment?.gateway_payment_id || txn?.payment_details?.transaction_ref || null,
+      escrowReference: payment?.escrow_virtual_account || txn?.payment_details?.escrow_ref || null,
+      paidAt: payment?.paid_at || txn?.payment_details?.paid_at || null,
+      buyer: txn?.buyer_name || null,
+      farmer: txn?.farmer_name || null,
+    }
+  }
+
   static async getPaymentById(paymentId: string) {
     const payment = inMemoryDb.payments.find(
       p => p.id === paymentId || p.transaction_id === paymentId || p.gateway_payment_id === paymentId

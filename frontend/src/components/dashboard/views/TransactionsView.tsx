@@ -121,7 +121,6 @@ export function TransactionsView({ isBuyer = false }: TransactionsViewProps) {
                 <Lock className="w-3.5 h-3.5 text-turmeric" />
                 {isBuyerMode ? 'Buyer Trade Contracts & Escrow' : 'Farmer Payouts & Escrow Desk'}
               </span>
-              <DemoDataBadge />
             </div>
             <h1 className="font-serif text-3xl md:text-4xl font-bold text-soil">
               {isBuyerMode ? 'Procurement Deals & Transactions' : 'Payments & Transaction Contracts'}

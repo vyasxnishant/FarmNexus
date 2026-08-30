@@ -19,6 +19,11 @@ router.post('/sandbox', authenticateToken, PaymentController.processSandboxPayme
 // Razorpay Webhook endpoint (Signature verified inside controller)
 router.post('/webhook', PaymentController.webhook)
 
+// Deal payment & escrow status lookup
+router.get('/deal/:dealId', authenticateToken, PaymentController.getPaymentByDealId)
+router.get('/transaction/:transactionId', authenticateToken, PaymentController.getPaymentByDealId)
+router.get('/status/:id', authenticateToken, PaymentController.getPaymentByDealId)
+
 // Admin payment oversight ledger
 router.get('/all', authenticateToken, authorizeRole(['ADMIN']), PaymentController.getAllPayments)
 

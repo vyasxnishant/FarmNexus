@@ -26,7 +26,6 @@ import {
 import { useDashboard, type FarmTransaction, type TransactionLifecycleStatus, type TransactionPaymentStatus } from '../../../context/DashboardContext'
 import { paymentApi } from '../../../services/apiServices'
 import { useRazorpay } from '../../../hooks/useRazorpay'
-import { DemoDataBadge } from '../components/DemoDataBadge'
 
 export function TransactionDetailsView() {
   const { transactionId } = useParams<{ transactionId: string }>()
@@ -118,6 +117,113 @@ export function TransactionDetailsView() {
     }
   }
 
+  const handleLiveRazorpayCheckout = async () => {
+    setIsProcessingPayment(true)
+    setPaymentError(null)
+    try {
+      // 1. Create order on backend with exact server-calculated amount
+      const orderRes = await paymentApi.createOrder(txn.id, 'RAZORPAY_POPUP')
+      if (!orderRes.success || !orderRes.data) {
+        throw new Error(orderRes.message || 'Failed to initialize payment order on server.')
+      }
+
+      const orderData = orderRes.data
+
+      // If Razorpay Standard Checkout SDK is available in browser
+      if (typeof window !== 'undefined' && window.Razorpay) {
+        const rzp = new window.Razorpay({
+          key: orderData.keyId || 'rzp_test_5173FarmNexus',
+          amount: orderData.amountInPaise,
+          currency: 'INR',
+          name: 'FarmNexus Escrow Vault',
+          description: `Escrow Fund Deposit for ${txn.crop} (${txn.id})`,
+          image: 'https://cdn-icons-png.flaticon.com/512/2917/2917995.png',
+          order_id: orderData.orderId,
+          handler: async function (response: any) {
+            setIsVerifying(true)
+            try {
+              // 2. Cryptographically verify signature on backend server
+              const verifyRes = await paymentApi.verify({
+                transactionId: txn.id,
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                payerVpa: payerVpaInput,
+              })
+
+              if (verifyRes.success && verifyRes.data && verifyRes.data.verified) {
+                updateTransactionPayment(
+                  txn.id,
+                  'Payment Successful',
+                  'Payment Completed',
+                  {
+                    method: 'Razorpay Gateway (Standard Checkout)',
+                    transactionRef: verifyRes.data.gatewayPaymentId,
+                    paidAt: verifyRes.data.paidAt,
+                    escrowRef: verifyRes.data.escrowReference,
+                  }
+                )
+                setVerifiedReceipt(verifyRes.data)
+                setPaymentSuccess(true)
+              } else {
+                setPaymentError(verifyRes.message || 'Payment signature verification failed on server.')
+              }
+            } catch (vErr: any) {
+              setPaymentError(vErr.response?.data?.message || vErr.message || 'Payment verification failed on server.')
+            } finally {
+              setIsVerifying(false)
+              setIsProcessingPayment(false)
+            }
+          },
+          prefill: {
+            name: txn.buyerName,
+            email: currentUser?.email || 'buyer.agrocorp@farmnexus.in',
+            contact: currentUser?.phone || '9876543210',
+          },
+          notes: {
+            transactionId: txn.id,
+            crop: txn.crop,
+          },
+          theme: {
+            color: '#152A26',
+          },
+          modal: {
+            ondismiss: function () {
+              setIsProcessingPayment(false)
+            },
+          },
+        })
+
+        rzp.open()
+      } else {
+        // Fallback to server-signed sandbox verification
+        const verifyRes = await paymentApi.processSandbox({
+          transactionId: txn.id,
+          paymentMethod: 'Razorpay Test (UPI / Standard)',
+          payerVpa: payerVpaInput,
+        })
+        if (verifyRes.success && verifyRes.data) {
+          updateTransactionPayment(
+            txn.id,
+            'Payment Successful',
+            'Payment Completed',
+            {
+              method: 'Razorpay Gateway (Sandbox Verified)',
+              transactionRef: verifyRes.data.gatewayPaymentId,
+              paidAt: verifyRes.data.paidAt,
+              escrowRef: verifyRes.data.escrowReference,
+            }
+          )
+          setVerifiedReceipt(verifyRes.data)
+          setPaymentSuccess(true)
+        }
+      }
+    } catch (err: any) {
+      setPaymentError(err.response?.data?.message || err.message || 'Payment processing failed.')
+      setIsProcessingPayment(false)
+    }
+  }
+
   const handleDispatchShipment = () => {
     setIsActionLoading(true)
     setTimeout(() => {
@@ -170,7 +276,6 @@ export function TransactionDetailsView() {
               <span className="font-mono text-xs font-bold px-2.5 py-0.5 rounded-full bg-monsoon text-wheat">
                 Lot: {txn.lotId}
               </span>
-              <DemoDataBadge />
             </div>
             <h1 className="font-serif text-3xl md:text-4xl font-bold text-soil">
               {txn.crop} <span className="font-normal text-xl text-soil/60">({txn.variety})</span>
@@ -653,23 +758,35 @@ export function TransactionDetailsView() {
                   </p>
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={isProcessingPayment || isVerifying}
-                  className="w-full py-3.5 bg-turmeric text-monsoon font-body text-xs font-bold rounded-xl hover:bg-turmeric/90 active:bg-turmeric/80 transition-all shadow-md cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60"
-                >
-                  {isProcessingPayment || isVerifying ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Verifying HMAC Signature & Securing Escrow...</span>
-                    </>
-                  ) : (
-                    <>
-                      <CreditCard className="w-4 h-4" />
-                      <span>Pay ₹{txn.finalAmount.toLocaleString('en-IN')} via Razorpay Test</span>
-                    </>
-                  )}
-                </button>
+                <div className="space-y-2">
+                  <button
+                    type="submit"
+                    disabled={isProcessingPayment || isVerifying}
+                    className="w-full py-3.5 bg-turmeric text-monsoon font-body text-xs font-bold rounded-xl hover:bg-turmeric/90 active:bg-turmeric/80 transition-all shadow-md cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60"
+                  >
+                    {isProcessingPayment || isVerifying ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Verifying HMAC Signature & Securing Escrow...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CreditCard className="w-4 h-4" />
+                        <span>Pay ₹{txn.finalAmount.toLocaleString('en-IN')} (Server Verified Test)</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={isProcessingPayment || isVerifying}
+                    onClick={handleLiveRazorpayCheckout}
+                    className="w-full py-2.5 bg-soil/5 text-soil hover:bg-soil/10 border border-soil/15 font-body text-xs font-semibold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-turmeric" />
+                    <span>Launch Razorpay Standard Checkout Popup</span>
+                  </button>
+                </div>
               </form>
             )}
           </div>

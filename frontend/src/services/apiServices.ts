@@ -207,6 +207,10 @@ export const paymentApi = {
     const res = await apiClient.get(`/payments/${id}`)
     return res.data
   },
+  getByDealId: async (dealId: string) => {
+    const res = await apiClient.get(`/payments/deal/${dealId}`)
+    return res.data
+  },
 }
 
 // 10. Logistics & Storage
