@@ -29,6 +29,7 @@ export function BuyerDashboardView() {
     lots,
     offers,
     calculateLotMatchScore,
+    currentUser,
     lang
   } = useDashboard()
 
@@ -54,7 +55,11 @@ export function BuyerDashboardView() {
   const highMatchLots = matchedLots.filter(m => m.match.isHighMatch)
 
   // Buyer's offers
-  const myOffers = offers.filter(o => o.buyerId === 'BUY-ME-01' || o.buyerCompany.includes('AgroCorp') || o.status === 'Pending')
+  const myOffers = offers.filter(o => 
+    currentUser 
+      ? (currentUser.user_type === 'ADMIN' || o.buyerId === currentUser.id || (currentUser.organization && o.buyerCompany === currentUser.organization))
+      : false
+  )
   const pendingOffers = myOffers.filter(o => o.status === 'Pending')
   const acceptedOffers = myOffers.filter(o => o.status === 'Accepted')
 

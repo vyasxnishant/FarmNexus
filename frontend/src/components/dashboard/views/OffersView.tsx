@@ -18,16 +18,19 @@ import { Button } from '../../ui/Button'
 import { DemoDataBadge, LiveSignalBadge } from '../components/DemoDataBadge'
 
 export function OffersView() {
-  const { offers, acceptOffer, rejectOffer, setCounterModalOffer, currentUser, lang } = useDashboard()
+  const { offers, lots, acceptOffer, rejectOffer, setCounterModalOffer, currentUser, lang } = useDashboard()
   const [filterStatus, setFilterStatus] = useState<string>('All')
 
   const filterTabs = ['All', 'Pending', 'Accepted', 'Countered', 'Rejected']
 
-  // Filter offers received by authenticated farmer
+  // Filter offers received by authenticated farmer (matching farmer ID or owned lot IDs)
+  const myFarmerLots = lots.filter(l => currentUser ? (currentUser.user_type === 'ADMIN' || l.farmerId === currentUser.id) : false)
+  const myLotIdSet = new Set(myFarmerLots.map(l => l.id))
+
   const receivedOffers = offers.filter(offer => {
-    if (!currentUser) return true
+    if (!currentUser) return false
     if (currentUser.user_type === 'ADMIN') return true
-    return offer.farmerId === currentUser.id || !offer.farmerId
+    return offer.farmerId === currentUser.id || myLotIdSet.has(offer.lotId)
   })
 
   const filteredOffers = receivedOffers.filter(offer => {
@@ -45,7 +48,6 @@ export function OffersView() {
               <span className="font-mono text-xs font-semibold uppercase tracking-wider text-turmeric bg-monsoon px-2.5 py-0.5 rounded-full">
                 {lang === 'en' ? 'Direct Deal Desk' : 'डील डेस्क'}
               </span>
-              <DemoDataBadge />
             </div>
             <h1 className="font-serif text-3xl md:text-4xl font-semibold text-soil">
               {lang === 'en' ? 'Incoming Buyer Offers' : 'प्राप्त खरीदार ऑफ़र'}
@@ -58,14 +60,14 @@ export function OffersView() {
           </div>
 
           <div className="flex items-center gap-2">
-            <LiveSignalBadge text={`${offers.filter(o => o.status === 'Pending').length} PENDING BIDS`} />
+            <LiveSignalBadge text={`${receivedOffers.filter(o => o.status === 'Pending').length} PENDING BIDS`} />
           </div>
         </div>
 
         {/* Status Filter Tabs */}
         <div className="flex flex-wrap items-center gap-2 mt-6 pt-6 border-t border-soil/10">
           {filterTabs.map((tab) => {
-            const count = tab === 'All' ? offers.length : offers.filter(o => o.status === tab).length
+            const count = tab === 'All' ? receivedOffers.length : receivedOffers.filter(o => o.status === tab).length
             return (
               <button
                 key={tab}

@@ -26,15 +26,30 @@ import { Button } from '../../ui/Button'
 export function OverviewView() {
   const { profile, lots, offers, payments, marketData, setIsListModalOpen, currentUser, lang } = useDashboard()
 
-  const myLots = lots.filter(l => !currentUser || currentUser.user_type === 'ADMIN' || l.farmerId === currentUser.id)
-  const myOffers = offers.filter(o => !currentUser || currentUser.user_type === 'ADMIN' || o.farmerId === currentUser.id || !o.farmerId)
-
+  const myLots = lots.filter(l => currentUser ? (currentUser.user_type === 'ADMIN' || l.farmerId === currentUser.id) : false)
+  const myLotIds = new Set(myLots.map(l => l.id))
   const activeLots = myLots.filter(l => l.status === 'Active')
   const totalProduceQtl = myLots.reduce((acc, l) => (l.status === 'Active' || l.status === 'Draft' ? acc + l.quantityQtl : acc), 0)
-  const pendingOffers = myOffers.filter(o => o.status === 'Pending')
-  const totalPendingPayout = payments
-    .filter(p => p.status === 'Pending' || p.status === 'Processing')
-    .reduce((acc, p) => acc + p.amount, 0)
+  const estimatedLotValue = myLots.reduce((acc, l) => acc + (l.quantityQtl * (l.expectedPrice || 0)), 0)
+
+  // Real persisted pending bids/offers belonging to the currently authenticated farmer
+  // (lotId must match farmer's owned lots or offer explicitly has farmerId)
+  const pendingOffers = offers.filter(o =>
+    o.status === 'Pending' &&
+    currentUser &&
+    (currentUser.user_type === 'ADMIN' || o.farmerId === currentUser.id || myLotIds.has(o.lotId))
+  )
+
+  // High Offer: pending offers where offered price >= asking/expected price
+  const highOffers = pendingOffers.filter(o => {
+    const lot = myLots.find(l => l.id === o.lotId)
+    const askingPrice = lot?.expectedPrice || o.lotExpectedPrice || 0
+    return askingPrice > 0 ? o.offeredPrice >= askingPrice : false
+  })
+  const highOffersCount = highOffers.length
+
+  const pendingDisbursements = payments.filter(p => p.status === 'Pending' || p.status === 'Processing')
+  const totalPendingPayout = pendingDisbursements.reduce((acc, p) => acc + p.amount, 0)
 
   return (
     <div className="space-y-8">
@@ -103,7 +118,7 @@ export function OverviewView() {
           </div>
           <div className="my-3">
             <span className="font-mono text-3xl font-bold text-wheat">{activeLots.length}</span>
-            <span className="font-body text-xs text-wheat/50 ml-2">({lots.length} total)</span>
+            <span className="font-body text-xs text-wheat/50 ml-2">({myLots.length} total)</span>
           </div>
           <div className="flex items-center justify-between text-xs font-body text-turmeric group-hover:underline">
             <span>{lang === 'en' ? 'Manage produce' : 'लॉट प्रबंधित करें'}</span>
@@ -125,7 +140,13 @@ export function OverviewView() {
           </div>
           <div className="text-[11px] font-body text-soil/60">
             {lang === 'en' ? 'Estimated Lot Value:' : 'अनुमानित मूल्य:'}{' '}
-            <span className="font-mono font-semibold text-soil">₹9.85 Lakh</span>
+            <span className="font-mono font-semibold text-soil">
+              {estimatedLotValue > 0
+                ? estimatedLotValue >= 100000
+                  ? `₹${(estimatedLotValue / 100000).toFixed(2)} Lakh`
+                  : `₹${estimatedLotValue.toLocaleString('en-IN')}`
+                : '₹0'}
+            </span>
           </div>
         </div>
 
@@ -143,7 +164,9 @@ export function OverviewView() {
           <div className="my-3 flex items-baseline gap-2">
             <span className="font-mono text-3xl font-bold text-soil">{pendingOffers.length}</span>
             <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-turmeric/15 text-soil">
-              {lang === 'en' ? '1 High Offer' : '1 उच्च ऑफ़र'}
+              {highOffersCount === 1
+                ? (lang === 'en' ? '1 High Offer' : '1 उच्च ऑफ़र')
+                : (lang === 'en' ? `${highOffersCount} High Offers` : `${highOffersCount} उच्च ऑफ़र`)}
             </span>
           </div>
           <div className="flex items-center justify-between text-xs font-body text-turmeric font-semibold group-hover:underline">
@@ -169,7 +192,11 @@ export function OverviewView() {
             </span>
           </div>
           <div className="flex items-center justify-between text-xs font-body text-datateal group-hover:underline">
-            <span>{lang === 'en' ? 'Track 2 disbursements' : 'भुगतान ट्रैक करें'}</span>
+            <span>
+              {lang === 'en'
+                ? `Track ${pendingDisbursements.length} disbursement${pendingDisbursements.length === 1 ? '' : 's'}`
+                : `भुगतान ट्रैक करें (${pendingDisbursements.length})`}
+            </span>
             <ChevronRight className="w-3.5 h-3.5" />
           </div>
         </Link>
@@ -315,35 +342,42 @@ export function OverviewView() {
             {lang === 'en' ? 'Recent Farm Activity' : 'हाल की गतिविधियां'}
           </h3>
           <div className="space-y-3 font-body text-xs">
-            <div className="flex items-start gap-3 p-3 rounded-xl bg-soil/5 border border-soil/10">
-              <CheckCircle2 className="w-4 h-4 text-datateal flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="font-medium text-soil">
-                  {lang === 'en' ? 'Offer Received: ₹2,780/qtl for Sharbati Wheat' : 'ऑफ़र मिला: ₹2,780/क्विंटल शरबती गेहूं'}
-                </p>
-                <p className="text-soil/50 text-[11px]">AgroCorp International • 15 mins ago</p>
-              </div>
-            </div>
+            {pendingOffers.length > 0 ? (
+              pendingOffers.slice(0, 2).map((off) => (
+                <div key={off.id} className="flex items-start gap-3 p-3 rounded-xl bg-soil/5 border border-soil/10">
+                  <CheckCircle2 className="w-4 h-4 text-datateal flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-medium text-soil">
+                      {lang === 'en'
+                        ? `Live Offer: ₹${off.offeredPrice.toLocaleString('en-IN')}/qtl for ${off.lotTitle}`
+                        : `लाइव ऑफ़र: ₹${off.offeredPrice.toLocaleString('en-IN')}/क्विंटल`}
+                    </p>
+                    <p className="text-soil/50 text-[11px]">{off.buyerCompany || off.buyerName} • Status: {off.status}</p>
+                  </div>
+                </div>
+              ))
+            ) : null}
 
-            <div className="flex items-start gap-3 p-3 rounded-xl bg-soil/5 border border-soil/10">
-              <CheckCircle2 className="w-4 h-4 text-datateal flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="font-medium text-soil">
-                  {lang === 'en' ? 'Payout Escrow Verified: ₹1,62,000' : 'एस्क्रो सत्यापन पूर्ण: ₹1,62,000'}
-                </p>
-                <p className="text-soil/50 text-[11px]">e-NWR Warehouse Escrow • Today 11:30 AM</p>
+            {myLots.length > 0 ? (
+              <div className="flex items-start gap-3 p-3 rounded-xl bg-soil/5 border border-soil/10">
+                <Sprout className="w-4 h-4 text-turmeric flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-medium text-soil">
+                    {lang === 'en'
+                      ? `Active Listing: ${myLots[0].crop} (${myLots[0].quantityQtl} qtl)`
+                      : `सक्रिय लॉट: ${myLots[0].crop}`}
+                  </p>
+                  <p className="text-soil/50 text-[11px]">Asking ₹{myLots[0].expectedPrice?.toLocaleString('en-IN')}/qtl • {myLots[0].location}</p>
+                </div>
               </div>
-            </div>
+            ) : null}
 
-            <div className="flex items-start gap-3 p-3 rounded-xl bg-soil/5 border border-soil/10">
-              <TrendingUp className="w-4 h-4 text-turmeric flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="font-medium text-soil">
-                  {lang === 'en' ? 'Indore Mandi Price Alert: +3.4% Surge' : 'इंदौर मंडी भाव अलर्ट: +3.4% उछाल'}
-                </p>
-                <p className="text-soil/50 text-[11px]">Market Intelligence Signal • 1 hour ago</p>
+            {pendingOffers.length === 0 && myLots.length === 0 && (
+              <div className="p-4 text-center text-soil/50">
+                <p>{lang === 'en' ? 'No recent farm activity yet.' : 'कोई हालिया गतिविधि नहीं है।'}</p>
+                <p className="text-[11px] text-soil/40 mt-1">{lang === 'en' ? 'List your produce to start receiving buyer bids.' : 'खरीदार बोलियां प्राप्त करने के लिए अपनी उपज सूचीबद्ध करें।'}</p>
               </div>
-            </div>
+            )}
           </div>
         </div>
 
