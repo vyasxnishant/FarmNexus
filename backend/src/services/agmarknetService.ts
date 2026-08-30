@@ -40,8 +40,8 @@ export class AgmarknetService {
     const apiKey = (config.dataGovInApiKey || config.agmarknetApiKey).trim()
 
     if (!apiKey) {
-      console.info('[AgmarknetService] No DATA_GOV_IN_API_KEY detected. Serving baseline demo data.')
-      return { count: 0, source: 'DEMO DATA (No API Key Configured)' }
+      console.info('[AgmarknetService] No DATA_GOV_IN_API_KEY detected.')
+      return { count: 0, source: 'AGMARKNET (No API Key Configured)' }
     }
 
     isSyncing = true
@@ -66,7 +66,7 @@ export class AgmarknetService {
 
       if (!Array.isArray(rawRecords) || rawRecords.length === 0) {
         console.warn('[AgmarknetService] data.gov.in returned 0 records for current request.')
-        return { count: 0, source: 'data.gov.in (Empty Response)' }
+        return { count: 0, source: 'AGMARKNET (Empty Response)' }
       }
 
       console.log(`[AgmarknetService] Received ${rawRecords.length} raw records from government feed. Normalizing...`)
@@ -83,7 +83,7 @@ export class AgmarknetService {
       console.error(`[AgmarknetService] Government API connection error: ${errorMsg}`)
       return {
         count: 0,
-        source: 'DEMO DATA (Government API Error / Key Unauthorized)',
+        source: 'AGMARKNET (API Error / Key Unauthorized)',
         error: errorMsg.includes('403')
           ? 'Government API returned 403 (Key not authorised). Please verify your 56-character OGD API Key and dataset subscription at data.gov.in.'
           : errorMsg,
@@ -94,7 +94,7 @@ export class AgmarknetService {
   }
 
   /**
-   * Query filtered AGMARKNET prices with fallback
+   * Query filtered AGMARKNET prices
    */
   static async getAgmarknetPrices(filter: {
     crop?: string
@@ -117,27 +117,10 @@ export class AgmarknetService {
 
     const hasLiveGov = records.some(r => r.source.includes('AGMARKNET') && !r.is_demo)
 
-    // If specific crop requested is not in today's live feed, supplement with verified APMC baseline records
-    if (records.length === 0 && filter.crop) {
-      const { seedPrices } = await import('../db/seed.js')
-      const fallbackMatches = seedPrices.filter(p =>
-        p.commodity.toLowerCase().includes(filter.crop!.toLowerCase()) ||
-        filter.crop!.toLowerCase().includes(p.commodity.toLowerCase())
-      )
-      if (fallbackMatches.length > 0) {
-        return {
-          records: fallbackMatches,
-          total: fallbackMatches.length,
-          source: 'DEMO DATA (Baseline Mandi Feed)',
-          isLive: false,
-        }
-      }
-    }
-
     return {
       records,
       total,
-      source: hasLiveGov ? 'AGMARKNET' : 'DEMO DATA (Baseline Mandi Feed)',
+      source: 'AGMARKNET',
       isLive: hasLiveGov,
     }
   }
@@ -146,10 +129,10 @@ export class AgmarknetService {
     return lastSyncTimestamp ? new Date(lastSyncTimestamp).toISOString() : null
   }
 
-  static getStatus(): { status: 'Connected' | 'Live' | 'Demo Fallback (No Key)' | 'Demo Fallback (Unauthorized)'; hasApiKey: boolean; lastSync: string | null } {
+  static getStatus(): { status: 'Connected' | 'Live' | 'Awaiting API Key' | 'Key Unauthorized'; hasApiKey: boolean; lastSync: string | null } {
     const hasKey = Boolean((config.dataGovInApiKey || config.agmarknetApiKey).trim())
     return {
-      status: hasKey ? (lastSyncTimestamp ? 'Live' : 'Connected') : 'Demo Fallback (No Key)',
+      status: hasKey ? (lastSyncTimestamp ? 'Live' : 'Connected') : 'Awaiting API Key',
       hasApiKey: hasKey,
       lastSync: this.getLastSyncTime(),
     }

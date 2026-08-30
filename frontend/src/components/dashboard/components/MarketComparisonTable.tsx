@@ -41,6 +41,16 @@ export function MarketComparisonTable({
 }: MarketComparisonTableProps) {
   const [sortBy, setSortBy] = useState<'net_realisation' | 'modal_price' | 'distance' | 'arrivals'>('net_realisation')
 
+  if (!prices || prices.length === 0) {
+    return (
+      <div className="bg-wheat rounded-3xl border border-soil/15 p-12 text-center text-soil/60 font-body text-xs space-y-2">
+        <Scale className="w-8 h-8 mx-auto text-soil/30" />
+        <p className="font-semibold text-soil text-sm">{lang === 'en' ? 'No market data available' : 'कोई मंडी डेटा उपलब्ध नहीं है'}</p>
+        <p>{lang === 'en' ? 'Live government mandi price feeds will appear here once connected.' : 'लाइव सरकारी मंडी भाव यहां प्रदर्शित होंगे।'}</p>
+      </div>
+    )
+  }
+
   // Calculate net realisation metrics for each market record
   const calculatedRows: MarketComparisonRow[] = prices.map((item) => {
     // Determine distance: approximate based on district or default

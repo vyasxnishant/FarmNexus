@@ -36,23 +36,6 @@ export function OverviewView() {
     .filter(p => p.status === 'Pending' || p.status === 'Processing')
     .reduce((acc, p) => acc + p.amount, 0)
 
-  // Best Selling Opportunity item
-  const bestOpportunity = {
-    crop: 'Wheat (Sharbati C-306)',
-    recommendedBuyer: 'AgroCorp International Direct Silo',
-    buyerLocation: 'Indore Central Hub (145 km)',
-    buyerReliability: 4.95,
-    grossPrice: 2840,
-    transportDeduction: 120,
-    handlingFee: 25,
-    netRealisation: 2695,
-    benchmarkLocalMandi: 2620,
-    extraNetGainPerQtl: 75,
-    totalLotValue: 377300,
-    quantityQtl: 140,
-    reason: 'Indore export demand surge (+3.4% today) offsets freight cost, netting ₹75/qtl higher than local Harda yard.',
-  }
-
   return (
     <div className="space-y-8">
       {/* 1. Farmer Profile Summary Hero Banner */}
@@ -192,99 +175,89 @@ export function OverviewView() {
         </Link>
       </div>
 
-      {/* 3. Best Selling Opportunity Card */}
-      <div className="bg-monsoon text-wheat rounded-3xl border-2 border-turmeric/40 p-6 md:p-8 relative overflow-hidden shadow-md">
-        {/* Glow Accent */}
-        <div className="absolute top-0 right-0 w-80 h-80 bg-turmeric/10 rounded-full blur-3xl pointer-events-none" />
+      {/* 3. Best Selling Opportunity Card (Dynamic from Market Data) */}
+      {marketData.length > 0 ? (
+        <div className="bg-monsoon text-wheat rounded-3xl border-2 border-turmeric/40 p-6 md:p-8 relative overflow-hidden shadow-md">
+          <div className="absolute top-0 right-0 w-80 h-80 bg-turmeric/10 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 relative z-10">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-turmeric flex items-center justify-center text-monsoon">
-              <Award className="w-5 h-5 font-bold" />
-            </div>
-            <div>
-              <span className="font-mono text-xs uppercase tracking-widest text-turmeric font-semibold">
-                {lang === 'en' ? 'Best Selling Opportunity Today' : 'आज का सबसे लाभदायक अवसर'}
-              </span>
-              <h3 className="font-serif text-2xl font-semibold text-wheat">{bestOpportunity.crop}</h3>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <LiveSignalBadge text="MATCH 98%" />
-            <DemoDataBadge />
-          </div>
-        </div>
-
-        {/* Opportunity Grid */}
-        <div className="grid md:grid-cols-12 gap-6 relative z-10">
-          {/* Left info */}
-          <div className="md:col-span-7 space-y-4">
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="font-body text-sm text-wheat font-medium">{bestOpportunity.recommendedBuyer}</span>
-              <span className="text-wheat/30">•</span>
-              <span className="font-body text-xs text-wheat/60">{bestOpportunity.buyerLocation}</span>
-              <span className="font-mono text-xs bg-wheat/10 text-turmeric px-2 py-0.5 rounded">
-                ★ {bestOpportunity.buyerReliability} Reliability
-              </span>
-            </div>
-
-            <p className="font-body text-xs text-wheat/80 leading-relaxed bg-wheat/5 p-3.5 rounded-xl border border-wheat/10">
-              <Sparkles className="w-4 h-4 text-datateal inline mr-1.5" />
-              {bestOpportunity.reason}
-            </p>
-
-            {/* Price breakdown cards */}
-            <div className="grid grid-cols-3 gap-3 text-center">
-              <div className="bg-wheat/5 p-3 rounded-xl border border-wheat/10">
-                <span className="font-body text-[11px] text-wheat/50 block">{lang === 'en' ? 'Gross Offer' : 'ऑफ़र भाव'}</span>
-                <span className="font-mono text-base font-bold text-wheat">₹{bestOpportunity.grossPrice}</span>
-                <span className="font-body text-[10px] text-wheat/40 block">/ qtl</span>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 relative z-10">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-turmeric flex items-center justify-center text-monsoon">
+                <Award className="w-5 h-5 font-bold" />
               </div>
-
-              <div className="bg-wheat/5 p-3 rounded-xl border border-wheat/10">
-                <span className="font-body text-[11px] text-wheat/50 block">{lang === 'en' ? 'Freight & Cess' : 'भाड़ा व उपकर'}</span>
-                <span className="font-mono text-base font-semibold text-turmeric">-₹{bestOpportunity.transportDeduction + bestOpportunity.handlingFee}</span>
-                <span className="font-body text-[10px] text-wheat/40 block">/ qtl</span>
+              <div>
+                <span className="font-mono text-xs uppercase tracking-widest text-turmeric font-semibold">
+                  {lang === 'en' ? 'Top Mandi Benchmark' : 'शीर्ष मंडी भाव'}
+                </span>
+                <h3 className="font-serif text-2xl font-semibold text-wheat">{marketData[0].crop}</h3>
               </div>
-
-              <div className="bg-wheat/10 p-3 rounded-xl border border-datateal/30">
-                <span className="font-body text-[11px] text-datateal font-semibold block">{lang === 'en' ? 'Net In-Hand' : 'शुद्ध प्राप्ति'}</span>
-                <span className="font-mono text-lg font-bold text-datateal">₹{bestOpportunity.netRealisation}</span>
-                <span className="font-body text-[10px] text-wheat/50 block">/ qtl</span>
-              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <LiveSignalBadge text="AGMARKNET LIVE" />
             </div>
           </div>
 
-          {/* Right Action Box */}
-          <div className="md:col-span-5 bg-wheat/5 rounded-2xl p-5 border border-wheat/10 flex flex-col justify-between space-y-4">
-            <div>
-              <span className="font-body text-xs text-wheat/60">{lang === 'en' ? 'Total Net Payout on 140 qtl' : '140 क्विंटल पर कुल शुद्ध भुगतान'}</span>
-              <div className="font-mono text-3xl font-bold text-datateal my-1">
-                ₹{bestOpportunity.totalLotValue.toLocaleString('en-IN')}
+          <div className="grid md:grid-cols-12 gap-6 relative z-10">
+            <div className="md:col-span-7 space-y-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="font-body text-sm text-wheat font-medium">{marketData[0].mandi}</span>
+                <span className="text-wheat/30">•</span>
+                <span className="font-body text-xs text-wheat/60">{marketData[0].state}</span>
               </div>
-              <p className="font-body text-xs text-datateal flex items-center gap-1">
-                <TrendingUp className="w-3.5 h-3.5" />
-                <span>+₹{(bestOpportunity.extraNetGainPerQtl * bestOpportunity.quantityQtl).toLocaleString('en-IN')} vs local Mandi</span>
-              </p>
+
+              <div className="grid grid-cols-3 gap-3 text-center">
+                <div className="bg-wheat/5 p-3 rounded-xl border border-wheat/10">
+                  <span className="font-body text-[11px] text-wheat/50 block">{lang === 'en' ? 'Min Price' : 'न्यूनतम'}</span>
+                  <span className="font-mono text-base font-bold text-wheat">₹{marketData[0].minPrice}</span>
+                  <span className="font-body text-[10px] text-wheat/40 block">/ qtl</span>
+                </div>
+
+                <div className="bg-wheat/10 p-3 rounded-xl border border-datateal/30">
+                  <span className="font-body text-[11px] text-datateal font-semibold block">{lang === 'en' ? 'Modal Price' : 'मॉडल भाव'}</span>
+                  <span className="font-mono text-lg font-bold text-datateal">₹{marketData[0].modalPrice}</span>
+                  <span className="font-body text-[10px] text-wheat/50 block">/ qtl</span>
+                </div>
+
+                <div className="bg-wheat/5 p-3 rounded-xl border border-wheat/10">
+                  <span className="font-body text-[11px] text-wheat/50 block">{lang === 'en' ? 'Max Price' : 'अधिकतम'}</span>
+                  <span className="font-mono text-base font-bold text-wheat">₹{marketData[0].maxPrice}</span>
+                  <span className="font-body text-[10px] text-wheat/40 block">/ qtl</span>
+                </div>
+              </div>
             </div>
 
-            <div className="flex gap-2">
-              <Link to="/farmer/offers" className="flex-1">
+            <div className="md:col-span-5 bg-wheat/5 rounded-2xl p-5 border border-wheat/10 flex flex-col justify-between space-y-4">
+              <div>
+                <span className="font-body text-xs text-wheat/60">{lang === 'en' ? 'Mandi Center' : 'मंडी केंद्र'}</span>
+                <div className="font-mono text-xl font-bold text-datateal my-1">
+                  {marketData[0].mandi}
+                </div>
+                <p className="font-body text-xs text-wheat/70">
+                  {marketData[0].state}
+                </p>
+              </div>
+
+              <Link to="/farmer/market-intelligence" className="w-full">
                 <Button variant="fill" size="md" className="w-full text-sm">
-                  {lang === 'en' ? 'Accept & Lock Deal' : 'सौदा लॉक करें'}
+                  {lang === 'en' ? 'Explore Mandi Intelligence' : 'मंडी विश्लेषण देखें'}
                 </Button>
               </Link>
-              <Link
-                to="/farmer/market-intelligence"
-                className="px-3.5 py-2.5 rounded-lg border border-wheat/20 text-wheat hover:bg-wheat/10 text-xs font-body flex items-center justify-center transition-colors"
-                title="View in Market Intelligence"
-              >
-                <ArrowUpRight className="w-4 h-4" />
-              </Link>
             </div>
           </div>
         </div>
-      </div>
+      ) : (
+        <div className="bg-wheat rounded-3xl border border-soil/15 p-8 text-center space-y-2">
+          <Scale className="w-8 h-8 text-soil/30 mx-auto" />
+          <h3 className="font-serif text-lg font-semibold text-soil">
+            {lang === 'en' ? 'No market data available' : 'कोई मंडी डेटा उपलब्ध नहीं है'}
+          </h3>
+          <p className="font-body text-xs text-soil/60 max-w-md mx-auto">
+            {lang === 'en'
+              ? 'Connect official government APMC / AGMARKNET data feeds to unlock real-time mandi benchmarking.'
+              : 'रियल-टाइम मंडी बेंचमार्किंग देखने के लिए आधिकारिक सरकारी APMC / AGMARKNET फीड कनेक्ट करें।'}
+          </p>
+        </div>
+      )}
 
       {/* 4. Live Mandi Ticker Preview */}
       <div className="bg-wheat rounded-2xl border border-soil/15 p-6 shadow-sm">
@@ -293,7 +266,7 @@ export function OverviewView() {
             <h3 className="font-serif text-xl font-semibold text-soil">
               {lang === 'en' ? 'Nearby Mandi Benchmarks' : 'निकटतम मंडी भाव'}
             </h3>
-            <LiveSignalBadge text="UPDATED" />
+            <LiveSignalBadge text="AGMARKNET" />
           </div>
           <Link to="/farmer/market-intelligence" className="font-body text-xs text-turmeric font-semibold hover:underline flex items-center gap-1">
             {lang === 'en' ? 'Full Market Intelligence' : 'संपूर्ण मंडी विश्लेषण'}
@@ -301,26 +274,33 @@ export function OverviewView() {
           </Link>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-4">
-          {marketData.slice(0, 3).map((item, idx) => (
-            <div key={idx} className="bg-soil/5 rounded-xl p-4 border border-soil/10 flex flex-col justify-between">
-              <div className="flex justify-between items-start">
-                <div>
-                  <h4 className="font-body text-sm font-semibold text-soil">{item.crop}</h4>
-                  <p className="font-body text-xs text-soil/60">{item.mandi} ({item.distanceKm} km)</p>
+        {marketData.length > 0 ? (
+          <div className="grid md:grid-cols-3 gap-4">
+            {marketData.slice(0, 3).map((item, idx) => (
+              <div key={idx} className="bg-soil/5 rounded-xl p-4 border border-soil/10 flex flex-col justify-between">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h4 className="font-body text-sm font-semibold text-soil">{item.crop}</h4>
+                    <p className="font-body text-xs text-soil/60">{item.mandi}</p>
+                  </div>
+                  <Sparkline data={item.sparkline} width={64} height={20} />
                 </div>
-                <Sparkline data={item.sparkline} width={64} height={20} />
-              </div>
 
-              <div className="flex items-baseline justify-between mt-3 pt-3 border-t border-soil/10">
-                <span className="font-mono text-lg font-bold text-soil">₹{item.modalPrice.toLocaleString('en-IN')}<span className="text-xs text-soil/50">/qtl</span></span>
-                <span className="font-mono text-xs font-semibold text-datateal bg-monsoon px-2 py-0.5 rounded">
-                  ▲ +{item.priceChange}%
-                </span>
+                <div className="flex items-baseline justify-between mt-3 pt-3 border-t border-soil/10">
+                  <span className="font-mono text-lg font-bold text-soil">₹{item.modalPrice.toLocaleString('en-IN')}<span className="text-xs text-soil/50">/qtl</span></span>
+                  <span className="font-mono text-xs font-semibold text-datateal bg-monsoon px-2 py-0.5 rounded">
+                    LIVE
+                  </span>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="p-8 bg-soil/5 rounded-xl border border-soil/10 text-center text-xs font-body text-soil/60">
+            <p className="font-medium text-soil">{lang === 'en' ? 'No market data available' : 'कोई मंडी डेटा उपलब्ध नहीं है'}</p>
+            <p className="mt-1 text-soil/50">{lang === 'en' ? 'Regional mandi benchmarks will stream here once feeds are active.' : 'सक्रिय होने पर क्षेत्रीय मंडी भाव यहां प्रदर्शित होंगे।'}</p>
+          </div>
+        )}
       </div>
 
       {/* 5. Net Realisation Interactive Calculator Section */}

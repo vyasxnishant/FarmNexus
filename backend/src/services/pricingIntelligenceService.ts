@@ -41,7 +41,23 @@ export class PricingIntelligenceService {
            lot.crop.toLowerCase().includes(p.commodity.toLowerCase())
     )
 
-    const pricesToUse = matchingPrices.length > 0 ? matchingPrices : inMemoryDb.marketPrices.slice(0, 6)
+    if (matchingPrices.length === 0) {
+      return {
+        lot: {
+          id: lot.id,
+          crop: lot.crop,
+          variety: lot.variety,
+          quantityQtl: lot.quantity_qtl,
+          location: lot.location,
+        },
+        localMandi: 'No Mandi Data Available',
+        bestMandi: 'No Mandi Data Available',
+        maxNetGain: 0,
+        markets: [],
+      }
+    }
+
+    const pricesToUse = matchingPrices
 
     // Standard transport calculation per distance
     const calculations: MarketNetReturnCalculation[] = pricesToUse.map(p => {

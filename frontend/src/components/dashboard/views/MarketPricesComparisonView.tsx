@@ -578,9 +578,9 @@ export function MarketPricesComparisonView() {
       ) : comparisons.length === 0 ? (
         <div className="bg-wheat rounded-3xl border border-soil/15 p-12 text-center space-y-4">
           <Scale className="w-12 h-12 text-soil/30 mx-auto" />
-          <h3 className="font-serif text-2xl font-bold text-soil">No Mandis Match Your Current Filters</h3>
+          <h3 className="font-serif text-2xl font-bold text-soil">No Market Data Available</h3>
           <p className="font-body text-xs text-soil/60 max-w-sm mx-auto">
-            Try broadening your distance filter or clearing your search keyword.
+            No live mandi prices were found for {crop}. Connect official government AGMARKNET / e-NAM feeds to stream live benchmarks.
           </p>
         </div>
       ) : (

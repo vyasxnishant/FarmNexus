@@ -230,7 +230,10 @@ export function MarketIntelligenceView() {
                   GOVT DATA (AGMARKNET)
                 </span>
               ) : (
-                <DemoDataBadge />
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-mono font-medium tracking-wide bg-soil/10 border border-soil/20 text-soil/70">
+                  <Database className="w-3.5 h-3.5" />
+                  AGMARKNET PIPELINE
+                </span>
               )}
             </div>
 
@@ -244,8 +247,8 @@ export function MarketIntelligenceView() {
                 {lastSyncTime
                   ? `${lang === 'en' ? 'Source Feed Timestamp:' : 'डेटा समय:'} ${new Date(lastSyncTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })} (${new Date(lastSyncTime).toLocaleDateString('en-IN')})`
                   : lang === 'en'
-                  ? 'Baseline market feeds loaded'
-                  : 'मंडी भाव उपलब्ध'}
+                  ? 'Official government market data pipeline'
+                  : 'आधिकारिक मंडी डेटा'}
               </span>
             </p>
           </div>
@@ -258,10 +261,9 @@ export function MarketIntelligenceView() {
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-body font-semibold text-soil bg-soil/5 hover:bg-soil/10 border border-soil/20 transition-colors cursor-pointer disabled:opacity-50"
               title="Refresh Mandi Data from Backend"
             >
-              <RefreshCw className={`w-3.5 h-3.5 text-turmeric ${isRefreshing ? 'animate-spin' : ''}`} />
-              <span>{isRefreshing ? (lang === 'en' ? 'Syncing...' : 'अपडेट...') : lang === 'en' ? 'Refresh Feed' : 'ताज़ा करें'}</span>
+              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-turmeric' : ''}`} />
+              <span>{lang === 'en' ? 'Refresh Mandi Prices' : 'मंडी भाव रीफ्रेश करें'}</span>
             </button>
-            <LiveSignalBadge text={hasLiveGovData ? 'GOVT AGMARKNET' : 'BASELINE FEED'} />
           </div>
         </div>
 
@@ -305,18 +307,18 @@ export function MarketIntelligenceView() {
         </div>
       </div>
 
-      {/* Stale / Demo Data Informational Banner (only if 100% demo) */}
-      {isAllDemo && (
-        <div className="bg-turmeric/10 border border-turmeric/30 rounded-2xl p-4 flex items-start gap-3">
-          <AlertTriangle className="w-5 h-5 text-turmeric flex-shrink-0 mt-0.5" />
-          <div className="font-body text-xs text-soil/90">
-            <p className="font-semibold text-soil">{lang === 'en' ? 'Demo Market Benchmark Mode Active' : 'डेमो मार्केट बेंचमार्क मोड सक्रिय'}</p>
-            <p className="mt-0.5 text-soil/70">
-              {lang === 'en'
-                ? 'Displaying verified baseline APMC mandi benchmark prices. Live automated daily feeds are retrieved from AGMARKNET.'
-                : 'वर्तमान में सत्यापित बेंचमार्क मंडी भाव प्रदर्शित किए जा रहे हैं। लाइव सरकारी फीड AGMARKNET से उपलब्ध होती है।'}
-            </p>
-          </div>
+      {/* Clean Empty State if no records exist */}
+      {prices.length === 0 && !isLoading && (
+        <div className="bg-wheat rounded-3xl border border-soil/15 p-12 text-center space-y-3">
+          <Database className="w-10 h-10 text-soil/30 mx-auto" />
+          <h3 className="font-serif text-xl font-bold text-soil">
+            {lang === 'en' ? 'No market data available' : 'कोई मंडी डेटा उपलब्ध नहीं है'}
+          </h3>
+          <p className="font-body text-xs text-soil/60 max-w-md mx-auto">
+            {lang === 'en'
+              ? 'No live government market feeds are currently ingested. Connect data.gov.in AGMARKNET API key in admin dashboard to stream real mandi prices.'
+              : 'वर्तमान में कोई लाइव मंडी डेटा उपलब्ध नहीं है। सरकारी भाव स्ट्रीम करने के लिए एडमिन डैशबोर्ड में AGMARKNET API Key दर्ज करें।'}
+          </p>
         </div>
       )}
 

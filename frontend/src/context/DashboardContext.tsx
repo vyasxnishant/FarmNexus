@@ -341,74 +341,8 @@ interface DashboardContextType {
   setCounterModalOffer: (offer: Offer | null) => void
 }
 
-// Baseline Fallbacks for Market Intelligence & Public Feeds
-const initialMarketData: MarketPriceData[] = [
-  {
-    crop: 'Wheat (Sharbati)',
-    mandi: 'Harda APMC Mandi',
-    state: 'Madhya Pradesh',
-    distanceKm: 18,
-    minPrice: 2580,
-    modalPrice: 2720,
-    maxPrice: 2840,
-    priceChange: 2.4,
-    trend: 'up',
-    lastUpdated: '12 mins ago',
-    sparkline: [2610, 2630, 2660, 2690, 2680, 2710, 2720],
-  },
-  {
-    crop: 'Wheat (Sharbati)',
-    mandi: 'Indore Central Mandi',
-    state: 'Madhya Pradesh',
-    distanceKm: 145,
-    minPrice: 2680,
-    modalPrice: 2840,
-    maxPrice: 2950,
-    priceChange: 3.4,
-    trend: 'up',
-    lastUpdated: '8 mins ago',
-    sparkline: [2700, 2730, 2760, 2790, 2810, 2830, 2840],
-  },
-  {
-    crop: 'Soybean',
-    mandi: 'Harda APMC Mandi',
-    state: 'Madhya Pradesh',
-    distanceKm: 18,
-    minPrice: 4720,
-    modalPrice: 4940,
-    maxPrice: 5120,
-    priceChange: 1.6,
-    trend: 'up',
-    lastUpdated: '15 mins ago',
-    sparkline: [4800, 4840, 4870, 4900, 4920, 4930, 4940],
-  },
-  {
-    crop: 'Soybean',
-    mandi: 'Ujjain Agro Mandi',
-    state: 'Madhya Pradesh',
-    distanceKm: 165,
-    minPrice: 4850,
-    modalPrice: 5080,
-    maxPrice: 5240,
-    priceChange: 4.1,
-    trend: 'up',
-    lastUpdated: '20 mins ago',
-    sparkline: [4850, 4900, 4950, 4990, 5020, 5060, 5080],
-  },
-  {
-    crop: 'Basmati Rice',
-    mandi: 'Bhopal Krishi Mandi',
-    state: 'Madhya Pradesh',
-    distanceKm: 155,
-    minPrice: 4100,
-    modalPrice: 4320,
-    maxPrice: 4500,
-    priceChange: -0.8,
-    trend: 'down',
-    lastUpdated: '25 mins ago',
-    sparkline: [4400, 4380, 4360, 4350, 4340, 4310, 4320],
-  },
-]
+// Initial Market Data (Clean empty state)
+const initialMarketData: MarketPriceData[] = []
 
 const initialBuyerMatches: BuyerMatch[] = [
   {
@@ -633,6 +567,37 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     }
 
     initAuth()
+
+    // Sync Live Market Prices from Backend
+    marketPriceApi.getAll()
+      .then((res: any) => {
+        if (res && res.data && Array.isArray(res.data) && res.data.length > 0) {
+          setMarketData(res.data.map((p: any) => ({
+            crop: p.commodity,
+            mandi: p.market,
+            state: p.state,
+            distanceKm: 30,
+            minPrice: Number(p.min_price) || 0,
+            modalPrice: Number(p.modal_price) || 0,
+            maxPrice: Number(p.max_price) || 0,
+            priceChange: Number(p.price_change) || 0,
+            trend: (p.trend as any) || 'steady',
+            lastUpdated: p.arrival_date || 'Today',
+            sparkline: [
+              Number(p.min_price) || 0,
+              Math.round(((Number(p.min_price) || 0) + (Number(p.modal_price) || 0)) / 2),
+              Number(p.modal_price) || 0,
+              Number(p.modal_price) || 0,
+              Number(p.max_price) || 0,
+            ],
+          })))
+        } else {
+          setMarketData([])
+        }
+      })
+      .catch(() => {
+        setMarketData([])
+      })
   }, [])
 
   // Login Method
