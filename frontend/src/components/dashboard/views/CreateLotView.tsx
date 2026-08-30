@@ -33,6 +33,7 @@ import {
   type GrainSize
 } from '../../../context/DashboardContext'
 import { LocationSelector } from '../../ui/LocationSelector'
+import { SearchableCropSelect } from '../../ui/SearchableCropSelect'
 
 interface CreateLotViewProps {
   isEditing?: boolean
@@ -308,20 +309,17 @@ export function CreateLotView({ isEditing = false }: CreateLotViewProps) {
                   <label className="block font-body text-xs font-semibold text-soil mb-1.5">
                     {lang === 'en' ? 'Crop Name *' : 'फसल का नाम *'}
                   </label>
-                  <select
+                  <SearchableCropSelect
                     value={crop}
-                    onChange={(e) => setCrop(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl bg-soil/5 border border-soil/15 font-body text-xs text-soil font-semibold focus:outline-none focus:border-turmeric cursor-pointer"
-                  >
-                    <option value="Wheat (Sharbati)">Wheat (Sharbati) / शरबती गेहूं</option>
-                    <option value="Soybean">Soybean / सोयाबीन</option>
-                    <option value="Basmati Rice">Basmati Rice / बासमती धान</option>
-                    <option value="Chana (Gram)">Chana (Gram) / चना (देसी/डॉलर)</option>
-                    <option value="Mustard">Mustard / सरसों</option>
-                    <option value="Maize">Maize / मक्का</option>
-                    <option value="Cotton (Kapas)">Cotton (Kapas) / कपास</option>
-                  </select>
-                  {errors.crop && <p className="text-red-700 font-body text-[11px] mt-1">{errors.crop}</p>}
+                    onChange={(cropName, categoryName) => {
+                      setCrop(cropName)
+                      if (categoryName && categoryName !== 'Other') {
+                        setCategory(categoryName)
+                      }
+                    }}
+                    lang={lang}
+                    error={errors.crop}
+                  />
                 </div>
 
                 <div>
@@ -337,7 +335,10 @@ export function CreateLotView({ isEditing = false }: CreateLotViewProps) {
                     <option value="Oilseeds">Oilseeds / तिलहन</option>
                     <option value="Pulses & Legumes">Pulses & Legumes / दलहन</option>
                     <option value="Fibers & Cash Crops">Fibers & Cash Crops / रेशेदार फसलें</option>
+                    <option value="Vegetables">Vegetables / सब्जियां</option>
+                    <option value="Fruits">Fruits / फल</option>
                     <option value="Spices & Condiments">Spices & Condiments / मसाले</option>
+                    <option value="Other">Other / अन्य</option>
                   </select>
                   {errors.category && <p className="text-red-700 font-body text-[11px] mt-1">{errors.category}</p>}
                 </div>

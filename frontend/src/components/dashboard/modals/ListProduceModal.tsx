@@ -3,6 +3,7 @@ import { X, Sprout, CheckCircle2, Sparkles } from 'lucide-react'
 import { useDashboard, type CropType, type QualityGrade } from '../../../context/DashboardContext'
 import { Button } from '../../ui/Button'
 import { LocationSelector } from '../../ui/LocationSelector'
+import { SearchableCropSelect } from '../../ui/SearchableCropSelect'
 
 export function ListProduceModal() {
   const { isListModalOpen, setIsListModalOpen, addLot, lang } = useDashboard()
@@ -105,27 +106,21 @@ export function ListProduceModal() {
                 <label htmlFor={cropFieldId} className="block font-body text-xs font-semibold text-soil/80 uppercase tracking-wider mb-2">
                   {lang === 'en' ? 'Commodity / Crop' : 'फसल / कमोडिटी'} *
                 </label>
-                <select
-                  id={cropFieldId}
+                <SearchableCropSelect
                   value={crop}
-                  onChange={(e) => {
-                    const c = e.target.value as CropType
+                  onChange={(c) => {
                     setCrop(c)
                     if (c.includes('Wheat')) setExpectedPrice(2780)
                     else if (c.includes('Soybean')) setExpectedPrice(5020)
-                    else if (c.includes('Rice')) setExpectedPrice(4300)
+                    else if (c.includes('Rice') || c.includes('Paddy')) setExpectedPrice(4300)
                     else if (c.includes('Chana')) setExpectedPrice(5850)
+                    else if (c.includes('Mustard')) setExpectedPrice(5400)
+                    else if (c.includes('Cotton')) setExpectedPrice(6800)
+                    else if (c.includes('Maize')) setExpectedPrice(2250)
+                    else if (c.includes('Turmeric')) setExpectedPrice(13500)
                   }}
-                  className="w-full bg-wheat border border-soil/25 rounded-xl px-4 py-2.5 font-body text-soil text-sm focus-visible:ring-2 focus-visible:ring-turmeric focus-visible:outline-none"
-                  required
-                >
-                  <option value="Wheat (Sharbati)">Wheat (Sharbati) / गेहूं (शरबती)</option>
-                  <option value="Soybean">Soybean / सोयाबीन</option>
-                  <option value="Basmati Rice">Basmati Rice / बासमती धान</option>
-                  <option value="Chana (Gram)">Chana (Gram) / चना</option>
-                  <option value="Mustard">Mustard / सरसों</option>
-                  <option value="Maize">Maize / मक्का</option>
-                </select>
+                  lang={lang}
+                />
               </div>
 
               {/* Variety */}
