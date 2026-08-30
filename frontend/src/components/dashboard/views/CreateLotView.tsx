@@ -32,6 +32,7 @@ import {
   type DamageLevel,
   type GrainSize
 } from '../../../context/DashboardContext'
+import { LocationSelector } from '../../ui/LocationSelector'
 
 interface CreateLotViewProps {
   isEditing?: boolean
@@ -808,31 +809,15 @@ export function CreateLotView({ isEditing = false }: CreateLotViewProps) {
             </div>
 
             <div className="space-y-4">
-              <div className="grid sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="block font-body text-xs font-semibold text-soil mb-1.5">
-                    {lang === 'en' ? 'State' : 'राज्य'}
-                  </label>
-                  <input
-                    type="text"
-                    value={stateName}
-                    onChange={(e) => setStateName(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl bg-soil/5 border border-soil/15 font-body text-xs text-soil font-semibold focus:outline-none focus:border-turmeric"
-                  />
-                </div>
+              <LocationSelector
+                selectedState={stateName}
+                selectedDistrict={district}
+                onStateChange={(s) => { setStateName(s); setDistrict(''); }}
+                onDistrictChange={(d) => setDistrict(d)}
+                required
+              />
 
-                <div>
-                  <label className="block font-body text-xs font-semibold text-soil mb-1.5">
-                    {lang === 'en' ? 'District' : 'जिला'}
-                  </label>
-                  <input
-                    type="text"
-                    value={district}
-                    onChange={(e) => setDistrict(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl bg-soil/5 border border-soil/15 font-body text-xs text-soil font-semibold focus:outline-none focus:border-turmeric"
-                  />
-                </div>
-
+              <div className="grid sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block font-body text-xs font-semibold text-soil mb-1.5">
                     {lang === 'en' ? 'Village / Tehsil' : 'गांव / तहसील'}
@@ -841,6 +826,20 @@ export function CreateLotView({ isEditing = false }: CreateLotViewProps) {
                     type="text"
                     value={village}
                     onChange={(e) => setVillage(e.target.value)}
+                    placeholder="e.g. Sirali"
+                    className="w-full px-4 py-2.5 rounded-xl bg-soil/5 border border-soil/15 font-body text-xs text-soil font-semibold focus:outline-none focus:border-turmeric"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-body text-xs font-semibold text-soil mb-1.5">
+                    {lang === 'en' ? 'Pickup Godown / Landmark *' : 'पिकअप गोदाम / लैंडमार्क *'}
+                  </label>
+                  <input
+                    type="text"
+                    value={pickupLocation}
+                    onChange={(e) => setPickupLocation(e.target.value)}
+                    placeholder="e.g. Godown #2, Main Highway Gate"
                     className="w-full px-4 py-2.5 rounded-xl bg-soil/5 border border-soil/15 font-body text-xs text-soil font-semibold focus:outline-none focus:border-turmeric"
                   />
                 </div>

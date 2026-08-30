@@ -11,11 +11,11 @@ import {
   FileText,
   ArrowRight,
   AlertCircle,
-  RefreshCw,
-  CheckCircle2,
-  ShieldCheck
+  RefreshCw
 } from 'lucide-react'
 import { useDashboard } from '../../context/DashboardContext'
+import { LocationSelector } from '../ui/LocationSelector'
+import { isValidDistrictForState } from '../../data/indiaLocations'
 
 export function RegisterView() {
   const navigate = useNavigate()
@@ -31,8 +31,8 @@ export function RegisterView() {
     phone: '',
     email: '',
     password: '',
-    state: 'Madhya Pradesh',
-    district: 'Harda',
+    state: '',
+    district: '',
     village: '',
     totalLandAcres: '10',
     fpoName: '',
@@ -46,8 +46,8 @@ export function RegisterView() {
     email: '',
     password: '',
     gstNumber: '',
-    state: 'Madhya Pradesh',
-    district: 'Indore',
+    state: '',
+    district: '',
     deliveryLocation: '',
     procurementCrop: 'Wheat (Sharbati)',
   })
@@ -68,6 +68,18 @@ export function RegisterView() {
     if (role === 'FARMER') {
       if (!farmerData.name.trim() || !farmerData.phone.trim() || !farmerData.email.trim() || !farmerData.password.trim()) {
         setError('Please fill in all required farmer fields.')
+        return
+      }
+      if (!farmerData.state) {
+        setError('Please select your State.')
+        return
+      }
+      if (!farmerData.district) {
+        setError('Please select your District.')
+        return
+      }
+      if (!isValidDistrictForState(farmerData.state, farmerData.district)) {
+        setError(`"${farmerData.district}" is not a valid district in ${farmerData.state}.`)
         return
       }
       if (farmerData.password.length < 6) {
@@ -99,6 +111,18 @@ export function RegisterView() {
     } else {
       if (!buyerData.companyName.trim() || !buyerData.name.trim() || !buyerData.phone.trim() || !buyerData.email.trim() || !buyerData.password.trim()) {
         setError('Please fill in all required buyer organization fields.')
+        return
+      }
+      if (!buyerData.state) {
+        setError('Please select your operating State.')
+        return
+      }
+      if (!buyerData.district) {
+        setError('Please select your operating District.')
+        return
+      }
+      if (!isValidDistrictForState(buyerData.state, buyerData.district)) {
+        setError(`"${buyerData.district}" is not a valid district in ${buyerData.state}.`)
         return
       }
       if (buyerData.password.length < 6) {
@@ -282,36 +306,20 @@ export function RegisterView() {
                   </div>
                 </div>
 
+                {/* DYNAMIC REUSABLE STATE & DISTRICT SELECTOR */}
+                <LocationSelector
+                  selectedState={farmerData.state}
+                  selectedDistrict={farmerData.district}
+                  onStateChange={(state) => setFarmerData(prev => ({ ...prev, state, district: '' }))}
+                  onDistrictChange={(district) => setFarmerData(prev => ({ ...prev, district }))}
+                  required
+                />
+
                 <div className="grid sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block font-body text-xs font-semibold text-soil mb-1">State</label>
-                    <select
-                      value={farmerData.state}
-                      onChange={(e) => setFarmerData({ ...farmerData, state: e.target.value })}
-                      className="w-full bg-soil/5 border border-soil/15 rounded-xl px-3 py-2.5 font-body text-xs text-soil focus-visible:ring-2 focus-visible:ring-turmeric focus-visible:outline-none"
-                    >
-                      <option value="Madhya Pradesh">Madhya Pradesh</option>
-                      <option value="Maharashtra">Maharashtra</option>
-                      <option value="Rajasthan">Rajasthan</option>
-                      <option value="Punjab">Punjab</option>
-                      <option value="Uttar Pradesh">Uttar Pradesh</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block font-body text-xs font-semibold text-soil mb-1">District</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. Harda"
-                      value={farmerData.district}
-                      onChange={(e) => setFarmerData({ ...farmerData, district: e.target.value })}
-                      className="w-full bg-soil/5 border border-soil/15 rounded-xl px-3 py-2.5 font-body text-xs text-soil focus-visible:ring-2 focus-visible:ring-turmeric focus-visible:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block font-body text-xs font-semibold text-soil mb-1">Village / Tehsil</label>
+                  <div className="sm:col-span-1">
+                    <label className="block font-body text-xs font-semibold text-soil mb-1">
+                      Village / Tehsil
+                    </label>
                     <input
                       type="text"
                       placeholder="e.g. Sirali"
@@ -320,10 +328,8 @@ export function RegisterView() {
                       className="w-full bg-soil/5 border border-soil/15 rounded-xl px-3 py-2.5 font-body text-xs text-soil focus-visible:ring-2 focus-visible:ring-turmeric focus-visible:outline-none"
                     />
                   </div>
-                </div>
 
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <div>
+                  <div className="sm:col-span-1">
                     <label className="block font-body text-xs font-semibold text-soil mb-1">
                       Cultivated Land (Acres)
                     </label>
@@ -336,13 +342,13 @@ export function RegisterView() {
                     />
                   </div>
 
-                  <div>
+                  <div className="sm:col-span-1">
                     <label className="block font-body text-xs font-semibold text-soil mb-1">
-                      FPO or Cooperative Name (Optional)
+                      FPO / Cooperative
                     </label>
                     <input
                       type="text"
-                      placeholder="e.g. Narmada Valley Kisan FPO"
+                      placeholder="e.g. Narmada Valley FPO"
                       value={farmerData.fpoName}
                       onChange={(e) => setFarmerData({ ...farmerData, fpoName: e.target.value })}
                       className="w-full bg-soil/5 border border-soil/15 rounded-xl px-3 py-2.5 font-body text-xs text-soil focus-visible:ring-2 focus-visible:ring-turmeric focus-visible:outline-none"
@@ -460,15 +466,26 @@ export function RegisterView() {
                   </div>
                 </div>
 
+                {/* DYNAMIC REUSABLE STATE & DISTRICT SELECTOR FOR BUYER */}
+                <LocationSelector
+                  selectedState={buyerData.state}
+                  selectedDistrict={buyerData.district}
+                  onStateChange={(state) => setBuyerData(prev => ({ ...prev, state, district: '' }))}
+                  onDistrictChange={(district) => setBuyerData(prev => ({ ...prev, district }))}
+                  stateLabel="Operating State / UT"
+                  districtLabel="Primary Mandi Hub / District"
+                  required
+                />
+
                 <div>
                   <label className="block font-body text-xs font-semibold text-soil mb-1">
-                    Processing Plant / Warehouse Delivery Location
+                    Processing Plant / Warehouse Delivery Point
                   </label>
                   <div className="relative">
                     <MapPin className="w-4 h-4 absolute left-3.5 top-3 text-soil/40" />
                     <input
                       type="text"
-                      placeholder="e.g. Indore Processing Terminal, AB Road, MP"
+                      placeholder="e.g. Processing Terminal, AB Road Industrial Area"
                       value={buyerData.deliveryLocation}
                       onChange={(e) => setBuyerData({ ...buyerData, deliveryLocation: e.target.value })}
                       className="w-full bg-soil/5 border border-soil/15 rounded-xl pl-10 pr-3 py-2.5 font-body text-xs text-soil focus-visible:ring-2 focus-visible:ring-turmeric focus-visible:outline-none"

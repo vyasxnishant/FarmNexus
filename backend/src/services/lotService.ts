@@ -1,5 +1,6 @@
 import { inMemoryDb, pool, isPostgresConnected } from '../config/db.js'
 import { CropLot, LotQuality, LotStatus } from '../models/types.js'
+import { isValidState, isValidDistrictForState } from '../data/indiaLocations.js'
 
 export class LotService {
   static async getAllLots(filters?: { crop?: string; grade?: string; status?: string; search?: string }) {
@@ -72,6 +73,16 @@ export class LotService {
     const lotId = `LOT-AGN-${Date.now().toString().slice(-3)}`
     const now = new Date().toISOString()
 
+    const targetState = data.state || (user ? user.state : 'Madhya Pradesh')
+    const targetDistrict = data.district || (user ? user.district : 'Harda')
+
+    if (data.state && !isValidState(data.state)) {
+      throw new Error(`Invalid state: "${data.state}" is not a recognized Indian State or Union Territory.`)
+    }
+    if ((data.state || data.district) && !isValidDistrictForState(targetState, targetDistrict)) {
+      throw new Error(`Invalid location: "${targetDistrict}" is not a recognized district of ${targetState}.`)
+    }
+
     const newLot: CropLot = {
       id: lotId,
       farmer_id: farmerId,
@@ -87,9 +98,9 @@ export class LotService {
       min_acceptable_price: Number(data.min_acceptable_price) || 2600,
       market_reference_price: Number(data.market_reference_price) || 2800,
       status: (data.status as LotStatus) || 'Active',
-      location: data.location || (user ? user.location : 'Sirali, Harda'),
-      district: data.district || (user ? user.district : 'Harda'),
-      state: data.state || (user ? user.state : 'Madhya Pradesh'),
+      location: data.location || (user ? user.location : `${targetDistrict}, ${targetState}`),
+      district: targetDistrict,
+      state: targetState,
       pickup_location: data.pickup_location || 'Farm Godown Bay #1',
       is_demo: false,
       quality: {
@@ -135,6 +146,16 @@ export class LotService {
     // Authorize owner
     if (existingLot.farmer_id !== farmerId) {
       throw new Error('Unauthorized: You can only edit lots created by your account.')
+    }
+
+    const targetState = data.state || existingLot.state || 'Madhya Pradesh'
+    const targetDistrict = data.district || existingLot.district || 'Harda'
+
+    if (data.state && !isValidState(data.state)) {
+      throw new Error(`Invalid state: "${data.state}" is not a recognized Indian State or Union Territory.`)
+    }
+    if ((data.state || data.district) && !isValidDistrictForState(targetState, targetDistrict)) {
+      throw new Error(`Invalid location: "${targetDistrict}" is not a recognized district of ${targetState}.`)
     }
 
     const updatedLot: CropLot = {

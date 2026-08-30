@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken'
 import { config } from '../config/env.js'
 import { inMemoryDb, pool, isPostgresConnected } from '../config/db.js'
 import { User, FarmerProfile, BuyerProfile, UserRole } from '../models/types.js'
+import { isValidState, isValidDistrictForState } from '../data/indiaLocations.js'
 
 export class AuthService {
   static async register(data: {
@@ -22,6 +23,14 @@ export class AuthService {
     const existing = inMemoryDb.users.find(u => u.email.toLowerCase() === data.email.toLowerCase())
     if (existing) {
       throw new Error('An account with this email address already exists.')
+    }
+
+    // Validate State and District combination
+    if (data.state && !isValidState(data.state)) {
+      throw new Error(`Invalid state: "${data.state}" is not a recognized Indian State or Union Territory.`)
+    }
+    if (data.state && data.district && !isValidDistrictForState(data.state, data.district)) {
+      throw new Error(`Invalid location: "${data.district}" is not a recognized district of ${data.state}.`)
     }
 
     const passwordHash = await bcrypt.hash(data.password, 10)
@@ -172,6 +181,16 @@ export class AuthService {
     const user = inMemoryDb.users.find(u => u.id === userId)
     if (!user) {
       throw new Error('User not found.')
+    }
+
+    const stateToValidate = data.state || user.state
+    const districtToValidate = data.district || user.district
+
+    if (data.state && !isValidState(data.state)) {
+      throw new Error(`Invalid state: "${data.state}" is not a recognized Indian State or Union Territory.`)
+    }
+    if ((data.state || data.district) && !isValidDistrictForState(stateToValidate, districtToValidate)) {
+      throw new Error(`Invalid location: "${districtToValidate}" is not a recognized district of ${stateToValidate}.`)
     }
 
     if (data.name) user.name = data.name

@@ -2,6 +2,7 @@ import { useState, type FormEvent, useId } from 'react'
 import { X, Sprout, CheckCircle2, Sparkles } from 'lucide-react'
 import { useDashboard, type CropType, type QualityGrade } from '../../../context/DashboardContext'
 import { Button } from '../../ui/Button'
+import { LocationSelector } from '../../ui/LocationSelector'
 
 export function ListProduceModal() {
   const { isListModalOpen, setIsListModalOpen, addLot, lang } = useDashboard()
@@ -21,6 +22,8 @@ export function ListProduceModal() {
   const [expectedPrice, setExpectedPrice] = useState(2780)
   const [moisturePercent, setMoisturePercent] = useState(10.5)
   const [harvestDate, setHarvestDate] = useState('2026-05-15')
+  const [stateName, setStateName] = useState('Madhya Pradesh')
+  const [district, setDistrict] = useState('Harda')
   const [location, setLocation] = useState('Sirali Godown #2, Harda')
   const [isSubmitted, setIsSubmitted] = useState(false)
 
@@ -38,7 +41,9 @@ export function ListProduceModal() {
       expectedPrice,
       moisturePercent,
       harvestDate,
-      location,
+      state: stateName,
+      district,
+      location: location || `${district}, ${stateName}`,
       status: 'Active',
       isDemo: true,
     })
@@ -226,21 +231,31 @@ export function ListProduceModal() {
                 />
               </div>
 
-              {/* Storage Location */}
+              {/* Specific Storage / Godown Landmark */}
               <div>
                 <label htmlFor={locationFieldId} className="block font-body text-xs font-semibold text-soil/80 uppercase tracking-wider mb-2">
-                  {lang === 'en' ? 'Produce Storage Location' : 'भंडारण स्थान'} *
+                  {lang === 'en' ? 'Godown / Pickup Landmark' : 'गोदाम / पिकअप स्थान'} *
                 </label>
                 <input
                   id={locationFieldId}
                   type="text"
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
+                  placeholder="e.g. Godown #2, Highway Gate"
                   className="w-full bg-wheat border border-soil/25 rounded-xl px-4 py-2.5 font-body text-soil text-sm focus-visible:ring-2 focus-visible:ring-turmeric focus-visible:outline-none"
                   required
                 />
               </div>
             </div>
+
+            {/* Dynamic State & District Selector */}
+            <LocationSelector
+              selectedState={stateName}
+              selectedDistrict={district}
+              onStateChange={(s) => { setStateName(s); setDistrict(''); }}
+              onDistrictChange={(d) => setDistrict(d)}
+              required
+            />
 
             {/* Smart Match Estimate Banner */}
             <div className="bg-monsoon text-wheat rounded-2xl p-4 flex items-center justify-between border border-wheat/10">

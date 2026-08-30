@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import { useDashboard } from '../../../context/DashboardContext'
 import { DemoDataBadge } from '../components/DemoDataBadge'
+import { LocationSelector } from '../../ui/LocationSelector'
 
 export function ProfileView() {
   const { currentUser, updateUserProfile, lang } = useDashboard()
@@ -165,32 +166,22 @@ export function ProfileView() {
               />
             </div>
 
-            <div>
-              <label className="block font-semibold text-soil mb-1">Village / Address / Delivery Point</label>
+            <div className="sm:col-span-2">
+              <LocationSelector
+                selectedState={formData.state}
+                selectedDistrict={formData.district}
+                onStateChange={(state) => setFormData(prev => ({ ...prev, state, district: '' }))}
+                onDistrictChange={(district) => setFormData(prev => ({ ...prev, district }))}
+                required
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="block font-semibold text-soil mb-1">Village / Local Address / Delivery Hub</label>
               <input
                 type="text"
                 value={formData.location}
                 onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                className="w-full bg-soil/5 border border-soil/15 rounded-xl px-3 py-2.5 text-soil font-body focus-visible:ring-2 focus-visible:ring-turmeric focus-visible:outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block font-semibold text-soil mb-1">District</label>
-              <input
-                type="text"
-                value={formData.district}
-                onChange={(e) => setFormData({ ...formData, district: e.target.value })}
-                className="w-full bg-soil/5 border border-soil/15 rounded-xl px-3 py-2.5 text-soil font-body focus-visible:ring-2 focus-visible:ring-turmeric focus-visible:outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block font-semibold text-soil mb-1">State</label>
-              <input
-                type="text"
-                value={formData.state}
-                onChange={(e) => setFormData({ ...formData, state: e.target.value })}
                 className="w-full bg-soil/5 border border-soil/15 rounded-xl px-3 py-2.5 text-soil font-body focus-visible:ring-2 focus-visible:ring-turmeric focus-visible:outline-none"
               />
             </div>
