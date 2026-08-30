@@ -138,3 +138,4 @@ export function getTransactionActionDeskInfo(txn: FarmTransaction, isBuyerMode: 
     allowGateVerification: isBuyerMode && inTransit,
   }
 }
+

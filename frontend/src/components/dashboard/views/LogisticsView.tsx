@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import {
   Truck,
@@ -45,17 +45,21 @@ export function LogisticsView() {
   const { lots, transactions, offers, lang } = useDashboard()
 
   const lotIdParam = searchParams.get('lotId')
+  const dealIdParam = searchParams.get('dealId') || searchParams.get('transactionId')
   const mandiParam = searchParams.get('mandi')
+
+  // Find transaction if dealId passed or match active lot
+  const targetTxn = dealIdParam ? transactions.find(t => t.id === dealIdParam) : undefined
 
   // Selected Lot
   const [selectedLotId, setSelectedLotId] = useState<string>(
-    lotIdParam || (lots.length > 0 ? lots[0].id : 'LOT-AGN-081')
+    targetTxn?.lotId || lotIdParam || (lots.length > 0 ? lots[0].id : '')
   )
 
-  const activeLot = lots.find(l => l.id === selectedLotId) || lots[0]
+  const activeLot = lots.find(l => l.id === selectedLotId) || (targetTxn ? lots.find(l => l.id === targetTxn.lotId) : lots[0])
 
   // Traded deal or matching transaction for this lot
-  const matchingTransaction = transactions.find(t => t.lotId === activeLot?.id)
+  const matchingTransaction = targetTxn || transactions.find(t => t.lotId === activeLot?.id)
   const matchingOffer = offers.find(o => o.lotId === activeLot?.id && o.status === 'Accepted')
 
   // Traded lot quantity in Quintals (consistent across state and never 0)
@@ -77,6 +81,16 @@ export function LogisticsView() {
   const [selectedMandiName, setSelectedMandiName] = useState<string>(
     mandiParam || mandiOptions[0].name
   )
+
+  useEffect(() => {
+    if (targetTxn?.lotId) {
+      setSelectedLotId(targetTxn.lotId)
+    } else if (lotIdParam) {
+      setSelectedLotId(lotIdParam)
+    } else if (lots.length > 0 && !lots.some(l => l.id === selectedLotId)) {
+      setSelectedLotId(lots[0].id)
+    }
+  }, [targetTxn, lotIdParam, lots])
 
   const selectedMandi = mandiOptions.find(m => m.name === selectedMandiName) || mandiOptions[0]
 

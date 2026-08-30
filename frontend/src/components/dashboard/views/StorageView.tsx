@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
   Building2,
@@ -33,11 +33,19 @@ export function StorageView() {
 
   const lotIdParam = searchParams.get('lotId')
   const [selectedLotId, setSelectedLotId] = useState<string>(
-    lotIdParam || (lots.length > 0 ? lots[0].id : 'LOT-AGN-081')
+    lotIdParam || (lots.length > 0 ? lots[0].id : '')
   )
 
+  useEffect(() => {
+    if (lotIdParam) {
+      setSelectedLotId(lotIdParam)
+    } else if (lots.length > 0 && !lots.some(l => l.id === selectedLotId)) {
+      setSelectedLotId(lots[0].id)
+    }
+  }, [lotIdParam, lots])
+
   const activeLot = lots.find(l => l.id === selectedLotId) || lots[0]
-  const quantityQtl = activeLot ? activeLot.quantityQtl : 100
+  const quantityQtl = (activeLot?.quantityQtl && activeLot.quantityQtl > 0) ? activeLot.quantityQtl : (activeLot?.initialQuantityQtl || 100)
 
   // Filters State
   const [searchQuery, setSearchQuery] = useState('')

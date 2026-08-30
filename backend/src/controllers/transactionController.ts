@@ -47,16 +47,16 @@ export class TransactionController {
       }
 
       const id = req.params.id as string
-      const { nextStage } = req.body
-      if (!nextStage) {
-        res.status(400).json({ success: false, message: 'nextStage parameter is required.' })
+      const stage = req.body.nextStage || req.body.transaction_status || req.body.status
+      if (!stage) {
+        res.status(400).json({ success: false, message: 'nextStage or transaction_status parameter is required.' })
         return
       }
 
-      const txn = await TransactionService.advanceStage(id, req.user.id, req.user.user_type, nextStage)
+      const txn = await TransactionService.advanceStage(id, req.user.id, req.user.user_type, stage)
       res.json({
         success: true,
-        message: `Transaction stage advanced to '${nextStage}'.`,
+        message: `Transaction stage advanced to '${stage}'.`,
         data: txn,
       })
     } catch (err) {
