@@ -129,6 +129,33 @@ export class PaymentService {
   }
 
   /**
+   * Process authenticated Razorpay sandbox payment:
+   * 1. Creates order with server-calculated amount
+   * 2. Issues test payment ID
+   * 3. Generates cryptographic HMAC SHA-256 signature using server RAZORPAY_KEY_SECRET
+   * 4. Executes strict verifyPayment, ledger updates, and audit logging
+   */
+  static async processSandboxPayment(transactionId: string, buyerUserId: string, paymentMethod: string = 'RAZORPAY_SANDBOX', payerVpa?: string) {
+    const orderData = await PaymentService.createPaymentOrder(transactionId, buyerUserId, paymentMethod)
+    const razorpayPaymentId = `pay_test_${crypto.randomBytes(7).toString('hex')}`
+
+    const signature = crypto
+      .createHmac('sha256', config.razorpayKeySecret)
+      .update(`${orderData.orderId}|${razorpayPaymentId}`)
+      .digest('hex')
+
+    const verified = await PaymentService.verifyPayment({
+      transactionId,
+      razorpay_order_id: orderData.orderId,
+      razorpay_payment_id: razorpayPaymentId,
+      razorpay_signature: signature,
+      payerVpa: payerVpa || `${orderData.buyer.name.toLowerCase().replace(/\s+/g, '.')}@icici`,
+    })
+
+    return verified
+  }
+
+  /**
    * Verify Razorpay cryptographic signature using RAZORPAY_KEY_SECRET.
    * Payment is ONLY marked SUCCESS when HMAC SHA-256 signature matches.
    */

@@ -13,6 +13,8 @@ router.post('/create', authenticateToken, PaymentController.createPaymentOrder)
 
 // Cryptographic signature verification - requires authenticated Buyer
 router.post('/verify', authenticateToken, PaymentController.verifyPayment)
+router.post('/process-sandbox', authenticateToken, PaymentController.processSandboxPayment)
+router.post('/sandbox', authenticateToken, PaymentController.processSandboxPayment)
 
 // Razorpay Webhook endpoint (Signature verified inside controller)
 router.post('/webhook', PaymentController.webhook)

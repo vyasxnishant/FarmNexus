@@ -195,6 +195,10 @@ export const paymentApi = {
     const res = await apiClient.post('/payments/verify', payload)
     return res.data
   },
+  processSandbox: async (payload: { transactionId: string; paymentMethod?: string; payerVpa?: string }) => {
+    const res = await apiClient.post('/payments/process-sandbox', payload)
+    return res.data
+  },
   getAll: async () => {
     const res = await apiClient.get('/payments/all')
     return res.data

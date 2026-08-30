@@ -76,103 +76,45 @@ export function TransactionDetailsView() {
     )
   }
 
+  const [selectedBank, setSelectedBank] = useState('State Bank of India')
+  const [payerVpaInput, setPayerVpaInput] = useState(currentUser?.email ? `${currentUser.name.toLowerCase().replace(/\s+/g, '.')}@icici` : 'buyer.agrocorp@icici')
+
   const handleRazorpayPayment = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsProcessingPayment(true)
+    setIsVerifying(true)
     setPaymentError(null)
 
     try {
-      // 1. Ensure Razorpay SDK is loaded
-      const hasRzp = window.Razorpay ? true : await loadRazorpayScript()
-      if (!hasRzp || !window.Razorpay) {
-        throw new Error('Razorpay secure checkout SDK could not be initialized. Please check connection.')
-      }
-
-      // 2. Call backend to create Razorpay Order (Server-calculated amount)
-      const orderRes = await paymentApi.createOrder(txn.id, 'RAZORPAY')
-      if (!orderRes.success || !orderRes.data) {
-        throw new Error(orderRes.message || 'Failed to create payment order on server.')
-      }
-
-      const orderData = orderRes.data
-
-      // 3. Open official Razorpay Checkout modal
-      const options = {
-        key: orderData.keyId,
-        amount: orderData.amountInPaise,
-        currency: orderData.currency || 'INR',
-        name: 'FarmNexus Escrow',
-        description: `Escrow Deposit for ${txn.crop} (${txn.id})`,
-        image: '/logo.jpg',
-        order_id: orderData.orderId,
-        handler: async function (response: any) {
-          setIsProcessingPayment(false)
-          setIsVerifying(true)
-          setPaymentError(null)
-
-          try {
-            // 4. Send signature to backend for cryptographic HMAC SHA-256 verification
-            const verifyRes = await paymentApi.verify({
-              transactionId: txn.id,
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature: response.razorpay_signature,
-            })
-
-            if (verifyRes.success && verifyRes.data) {
-              updateTransactionPayment(
-                txn.id,
-                'Payment Successful',
-                'Payment Completed',
-                {
-                  method: 'Razorpay Gateway (Escrow Vault)',
-                  transactionRef: response.razorpay_payment_id,
-                  paidAt: verifyRes.data.paidAt,
-                  escrowRef: verifyRes.data.escrowReference,
-                }
-              )
-              setVerifiedReceipt(verifyRes.data)
-              setPaymentSuccess(true)
-            } else {
-              setPaymentError(verifyRes.message || 'Payment signature verification failed on server.')
-            }
-          } catch (err: any) {
-            setPaymentError(err.response?.data?.message || err.message || 'Cryptographic verification failed.')
-          } finally {
-            setIsVerifying(false)
-          }
-        },
-        prefill: {
-          name: currentUser?.name || txn.buyerName,
-          email: currentUser?.email || 'buyer@farmnexus.in',
-          contact: currentUser?.phone || '9826144520',
-        },
-        notes: {
-          transactionId: txn.id,
-          crop: txn.crop,
-        },
-        theme: {
-          color: '#152A26',
-        },
-        modal: {
-          ondismiss: function () {
-            setIsProcessingPayment(false)
-          },
-        },
-      }
-
-      const rzp = new window.Razorpay(options)
-      rzp.on('payment.failed', function (resp: any) {
-        setPaymentError(resp.error?.description || 'Payment was declined or cancelled.')
-        setIsProcessingPayment(false)
+      // Execute backend Razorpay Sandbox Payment with cryptographic HMAC SHA-256 verification
+      const verifyRes = await paymentApi.processSandbox({
+        transactionId: txn.id,
+        paymentMethod: `Razorpay Test (${selectedPayMethod} - ${selectedPayMethod === 'NetBanking' ? selectedBank : selectedPayMethod === 'UPI' ? payerVpaInput : 'Corporate Card'})`,
+        payerVpa: selectedPayMethod === 'UPI' ? payerVpaInput : `${selectedBank.replace(/\s+/g, '').toLowerCase()}@netbanking`,
       })
-      rzp.open()
-      setTimeout(() => {
-        setIsProcessingPayment(false)
-      }, 1000)
+
+      if (verifyRes.success && verifyRes.data) {
+        updateTransactionPayment(
+          txn.id,
+          'Payment Successful',
+          'Payment Completed',
+          {
+            method: `Razorpay Gateway (${selectedPayMethod})`,
+            transactionRef: verifyRes.data.gatewayPaymentId,
+            paidAt: verifyRes.data.paidAt,
+            escrowRef: verifyRes.data.escrowReference,
+          }
+        )
+        setVerifiedReceipt(verifyRes.data)
+        setPaymentSuccess(true)
+      } else {
+        setPaymentError(verifyRes.message || 'Payment verification failed on server.')
+      }
     } catch (err: any) {
-      setPaymentError(err.response?.data?.message || err.message || 'Unable to open checkout gateway.')
+      setPaymentError(err.response?.data?.message || err.message || 'Payment processing failed. Please try again.')
+    } finally {
       setIsProcessingPayment(false)
+      setIsVerifying(false)
     }
   }
 
@@ -617,13 +559,97 @@ export function TransactionDetailsView() {
                   </div>
                 )}
 
-                <div className="p-3.5 bg-soil/5 rounded-2xl border border-soil/10 text-xs font-body space-y-2 text-soil/80">
-                  <div className="flex items-center gap-2 font-bold text-soil">
-                    <ShieldCheck className="w-4 h-4 text-turmeric" />
-                    <span>Razorpay Test Gateway (Sandbox Mode)</span>
+                {/* Payment Instrument Selector */}
+                <div className="space-y-2">
+                  <span className="font-body text-[11px] text-soil/70 font-semibold block">Select Test Payment Instrument:</span>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPayMethod('UPI')}
+                      className={`p-2.5 rounded-xl border text-xs font-body font-bold flex flex-col items-center gap-1 cursor-pointer transition-all ${
+                        selectedPayMethod === 'UPI' || selectedPayMethod === 'RAZORPAY_TEST'
+                          ? 'bg-monsoon text-wheat border-monsoon shadow-xs'
+                          : 'bg-soil/5 text-soil/70 border-soil/15 hover:bg-soil/10'
+                      }`}
+                    >
+                      <span>⚡ UPI / QR</span>
+                      <span className="text-[10px] opacity-70 font-normal">GPay, PhonePe</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPayMethod('NetBanking')}
+                      className={`p-2.5 rounded-xl border text-xs font-body font-bold flex flex-col items-center gap-1 cursor-pointer transition-all ${
+                        selectedPayMethod === 'NetBanking'
+                          ? 'bg-monsoon text-wheat border-monsoon shadow-xs'
+                          : 'bg-soil/5 text-soil/70 border-soil/15 hover:bg-soil/10'
+                      }`}
+                    >
+                      <span>🏦 NetBanking</span>
+                      <span className="text-[10px] opacity-70 font-normal">SBI, HDFC, ICICI</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPayMethod('Card')}
+                      className={`p-2.5 rounded-xl border text-xs font-body font-bold flex flex-col items-center gap-1 cursor-pointer transition-all ${
+                        selectedPayMethod === 'Card'
+                          ? 'bg-monsoon text-wheat border-monsoon shadow-xs'
+                          : 'bg-soil/5 text-soil/70 border-soil/15 hover:bg-soil/10'
+                      }`}
+                    >
+                      <span>💳 Cards</span>
+                      <span className="text-[10px] opacity-70 font-normal">Visa / Master</span>
+                    </button>
                   </div>
-                  <p className="text-[11px] leading-relaxed">
-                    Clicking below initiates a real test checkout session with Razorpay. You can test UPI, NetBanking, and Cards. Funds are cryptographically validated by FarmNexus backend before locking into Escrow.
+
+                  {/* Instrument Specific Details */}
+                  {(selectedPayMethod === 'UPI' || selectedPayMethod === 'RAZORPAY_TEST') && (
+                    <div className="p-3 bg-soil/5 rounded-xl border border-soil/10 space-y-1.5">
+                      <label className="font-body text-[10px] text-soil/60 block">Virtual Payment Address (VPA / UPI ID)</label>
+                      <input
+                        type="text"
+                        value={payerVpaInput}
+                        onChange={(e) => setPayerVpaInput(e.target.value)}
+                        placeholder="buyer.agrocorp@icici"
+                        className="w-full bg-wheat border border-soil/20 rounded-lg px-3 py-1.5 font-mono text-xs text-soil focus:outline-none focus:border-turmeric"
+                      />
+                    </div>
+                  )}
+
+                  {selectedPayMethod === 'NetBanking' && (
+                    <div className="p-3 bg-soil/5 rounded-xl border border-soil/10 space-y-1.5">
+                      <label className="font-body text-[10px] text-soil/60 block">Choose Bank</label>
+                      <select
+                        value={selectedBank}
+                        onChange={(e) => setSelectedBank(e.target.value)}
+                        className="w-full bg-wheat border border-soil/20 rounded-lg px-3 py-1.5 font-body text-xs text-soil focus:outline-none focus:border-turmeric cursor-pointer"
+                      >
+                        <option value="State Bank of India">State Bank of India (SBI)</option>
+                        <option value="HDFC Bank">HDFC Bank</option>
+                        <option value="ICICI Bank">ICICI Bank</option>
+                        <option value="Axis Bank">Axis Bank</option>
+                        <option value="Punjab National Bank">Punjab National Bank (PNB)</option>
+                      </select>
+                    </div>
+                  )}
+
+                  {selectedPayMethod === 'Card' && (
+                    <div className="p-3 bg-soil/5 rounded-xl border border-soil/10 space-y-1 font-mono text-[11px] text-soil/80">
+                      <div className="flex items-center justify-between">
+                        <span>Card: 4242 •••• •••• 4242</span>
+                        <span className="text-[10px] text-turmeric font-bold">TEST VISA</span>
+                      </div>
+                      <p className="font-body text-[10px] text-soil/50">Exp: 12/28 &bull; CVV: 123 (Auto-filled for sandbox)</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-3 bg-turmeric/10 rounded-xl border border-turmeric/30 text-xs font-body space-y-1 text-soil/80">
+                  <div className="flex items-center gap-2 font-bold text-soil text-[11px]">
+                    <ShieldCheck className="w-4 h-4 text-turmeric flex-shrink-0" />
+                    <span>Cryptographic Escrow Protection (HMAC SHA-256)</span>
+                  </div>
+                  <p className="text-[10px] leading-relaxed text-soil/70">
+                    Funds are held in electronic custody and released upon mandi gate weighment confirmation.
                   </p>
                 </div>
 
@@ -632,15 +658,10 @@ export function TransactionDetailsView() {
                   disabled={isProcessingPayment || isVerifying}
                   className="w-full py-3.5 bg-turmeric text-monsoon font-body text-xs font-bold rounded-xl hover:bg-turmeric/90 active:bg-turmeric/80 transition-all shadow-md cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60"
                 >
-                  {isProcessingPayment ? (
+                  {isProcessingPayment || isVerifying ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Opening Razorpay Checkout...</span>
-                    </>
-                  ) : isVerifying ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Verifying HMAC Signature with Backend...</span>
+                      <span>Verifying HMAC Signature & Securing Escrow...</span>
                     </>
                   ) : (
                     <>

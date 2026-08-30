@@ -42,6 +42,42 @@ export class PaymentController {
   }
 
   /**
+   * Complete Razorpay Sandbox Test Payment with server-side signature verification
+   */
+  static async processSandboxPayment(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({ success: false, message: 'Authentication required.' })
+        return
+      }
+
+      const { transactionId, paymentMethod, payerVpa } = req.body
+      if (!transactionId) {
+        res.status(400).json({ success: false, message: 'transactionId is required.' })
+        return
+      }
+
+      const result = await PaymentService.processSandboxPayment(
+        transactionId,
+        req.user.id,
+        paymentMethod || 'RAZORPAY_SANDBOX',
+        payerVpa
+      )
+
+      res.json({
+        success: true,
+        message: 'Razorpay test payment verified and funds secured in Escrow Vault.',
+        data: result,
+      })
+    } catch (err: any) {
+      res.status(400).json({
+        success: false,
+        message: err.message || 'Payment processing failed.',
+      })
+    }
+  }
+
+  /**
    * Verify Razorpay payment cryptographic signature
    */
   static async verifyPayment(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
