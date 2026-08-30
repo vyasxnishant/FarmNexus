@@ -110,6 +110,12 @@ export interface CropLot {
   location: string
   district?: string
   state?: string
+  harvest_date?: string
+  available_from?: string
+  available_until?: string
+  description?: string
+  image_url?: string
+  certificate_url?: string
   pickup_location?: string
   is_demo?: boolean
   quality?: LotQuality

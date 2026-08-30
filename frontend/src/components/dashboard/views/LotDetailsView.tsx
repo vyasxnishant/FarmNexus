@@ -120,6 +120,9 @@ export function LotDetailsView() {
             <h1 className="font-serif text-3xl md:text-4xl font-bold text-soil mt-1">
               {lot.crop} — <span className="font-normal text-soil/70 text-2xl">{lot.variety}</span>
             </h1>
+            <p className="font-body text-xs text-soil/60 mt-1">
+              Owner Farmer ID: <span className="font-mono font-semibold text-soil">{lot.farmerId || 'Authenticated Farmer'}</span> &bull; {lot.farmerName}
+            </p>
           </div>
         </div>
 
@@ -209,11 +212,17 @@ export function LotDetailsView() {
 
             <div className="grid sm:grid-cols-3 gap-4">
               <div className="bg-soil/5 rounded-2xl p-4 border border-soil/10">
-                <span className="font-body text-[11px] text-soil/60 block">HARVEST QUANTITY</span>
+                <span className="font-body text-[11px] text-soil/60 block">
+                  {lot.initialQuantityQtl && lot.initialQuantityQtl !== lot.quantityQtl ? 'AVAILABLE REMAINING' : 'HARVEST QUANTITY'}
+                </span>
                 <p className="font-mono text-2xl font-bold text-soil mt-1">
                   {lot.quantityQtl} <span className="text-xs font-normal text-soil/60">{lot.unit || 'Quintals'}</span>
                 </p>
-                <span className="font-mono text-[11px] text-soil/50">({(lot.quantityQtl / 10).toFixed(1)} Metric Tonnes)</span>
+                <span className="font-mono text-[11px] text-soil/50">
+                  {lot.initialQuantityQtl && lot.initialQuantityQtl !== lot.quantityQtl
+                    ? `Initial Harvest: ${lot.initialQuantityQtl} qtl (${lot.initialQuantityQtl - lot.quantityQtl} qtl sold)`
+                    : `(${(lot.quantityQtl / 10).toFixed(1)} Metric Tonnes)`}
+                </span>
               </div>
 
               <div className="bg-soil/5 rounded-2xl p-4 border border-soil/10">

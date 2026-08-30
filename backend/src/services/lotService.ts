@@ -102,6 +102,12 @@ export class LotService {
       location: data.location || (user ? user.location : `${targetDistrict}, ${targetState}`),
       district: targetDistrict,
       state: targetState,
+      harvest_date: data.harvest_date || now.split('T')[0],
+      available_from: data.available_from,
+      available_until: data.available_until,
+      description: data.description,
+      image_url: data.image_url,
+      certificate_url: data.certificate_url,
       pickup_location: data.pickup_location || 'Farm Godown Bay #1',
       is_demo: false,
       quality: {
@@ -165,6 +171,12 @@ export class LotService {
       quantity_qtl: data.quantity_qtl !== undefined ? Number(data.quantity_qtl) : existingLot.quantity_qtl,
       expected_price: data.expected_price !== undefined ? Number(data.expected_price) : existingLot.expected_price,
       min_acceptable_price: data.min_acceptable_price !== undefined ? Number(data.min_acceptable_price) : existingLot.min_acceptable_price,
+      harvest_date: data.harvest_date || existingLot.harvest_date,
+      available_from: data.available_from !== undefined ? data.available_from : existingLot.available_from,
+      available_until: data.available_until !== undefined ? data.available_until : existingLot.available_until,
+      description: data.description !== undefined ? data.description : existingLot.description,
+      image_url: data.image_url !== undefined ? data.image_url : existingLot.image_url,
+      certificate_url: data.certificate_url !== undefined ? data.certificate_url : existingLot.certificate_url,
       updated_at: new Date().toISOString(),
     }
 
@@ -181,6 +193,11 @@ export class LotService {
     const existingLot = inMemoryDb.lots[lotIndex]
     if (existingLot.farmer_id !== farmerId) {
       throw new Error('Unauthorized: You can only delete lots created by your account.')
+    }
+
+    const hasTransactions = inMemoryDb.transactions.some(t => t.lot_id === lotId)
+    if (hasTransactions) {
+      throw new Error('Cannot delete lot: This lot is referenced in trade contracts/transactions. You can pause or mark it as Sold instead.')
     }
 
     inMemoryDb.lots.splice(lotIndex, 1)
