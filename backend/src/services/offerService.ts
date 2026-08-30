@@ -42,6 +42,8 @@ export class OfferService {
     const newOffer: Offer = {
       id: offerId,
       lot_id: lot.id,
+      farmer_id: lot.farmer_id,
+      farmer_name: lot.farmer_name,
       lot_title: `${lot.crop} (${lot.variety}) • ${data.quantity_qtl} qtl`,
       buyer_id: buyerId,
       buyer_name: buyerUser ? buyerUser.name : 'Authorized Buyer',
@@ -71,7 +73,7 @@ export class OfferService {
   static async getFarmerOffers(farmerId: string) {
     // Find all lots belonging to this farmer
     const farmerLotIds = inMemoryDb.lots.filter(l => l.farmer_id === farmerId).map(l => l.id)
-    return inMemoryDb.offers.filter(o => farmerLotIds.includes(o.lot_id))
+    return inMemoryDb.offers.filter(o => o.farmer_id === farmerId || farmerLotIds.includes(o.lot_id))
   }
 
   static async getOfferById(offerId: string) {
@@ -93,7 +95,7 @@ export class OfferService {
       throw new Error(`Associated produce lot not found: ${offer.lot_id}`)
     }
 
-    if (lot.farmer_id !== farmerId) {
+    if (lot.farmer_id !== farmerId && offer.farmer_id !== farmerId) {
       throw new Error('Unauthorized: Only the farmer who owns this lot can accept this offer.')
     }
 
@@ -105,16 +107,25 @@ export class OfferService {
     offer.status = 'Accepted'
     offer.updated_at = new Date().toISOString()
 
-    // 2. Mark lot status as Under Offer
-    lot.status = 'Under Offer'
+    // 2. Update lot remaining quantity & status
+    const remainingQty = Math.max(0, lot.quantity_qtl - offer.quantity_qtl)
+    lot.quantity_qtl = remainingQty
+
+    if (lot.quantity_qtl === 0) {
+      lot.status = 'Sold'
+    } else {
+      lot.status = 'Active'
+    }
     lot.updated_at = new Date().toISOString()
 
-    // 3. Reject other conflicting pending offers on this lot
+    // 3. Reject other conflicting pending offers if insufficient volume remains
     inMemoryDb.offers
       .filter(o => o.lot_id === lot.id && o.id !== offer.id && o.status === 'Pending')
       .forEach(o => {
-        o.status = 'Rejected'
-        o.updated_at = new Date().toISOString()
+        if (o.quantity_qtl > lot.quantity_qtl) {
+          o.status = 'Rejected'
+          o.updated_at = new Date().toISOString()
+        }
       })
 
     // 4. Create Transaction automatically on backend

@@ -18,12 +18,19 @@ import { Button } from '../../ui/Button'
 import { DemoDataBadge, LiveSignalBadge } from '../components/DemoDataBadge'
 
 export function OffersView() {
-  const { offers, acceptOffer, rejectOffer, setCounterModalOffer, lang } = useDashboard()
+  const { offers, acceptOffer, rejectOffer, setCounterModalOffer, currentUser, lang } = useDashboard()
   const [filterStatus, setFilterStatus] = useState<string>('All')
 
   const filterTabs = ['All', 'Pending', 'Accepted', 'Countered', 'Rejected']
 
-  const filteredOffers = offers.filter(offer => {
+  // Filter offers received by authenticated farmer
+  const receivedOffers = offers.filter(offer => {
+    if (!currentUser) return true
+    if (currentUser.user_type === 'ADMIN') return true
+    return offer.farmerId === currentUser.id || !offer.farmerId
+  })
+
+  const filteredOffers = receivedOffers.filter(offer => {
     if (filterStatus === 'All') return true
     return offer.status === filterStatus
   })

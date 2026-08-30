@@ -29,9 +29,9 @@ export function ListProduceModal() {
 
   if (!isListModalOpen) return null
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    addLot({
+    await addLot({
       crop,
       cropHi: crop === 'Wheat (Sharbati)' ? 'गेहूं (शरबती)' : crop === 'Soybean' ? 'सोयाबीन' : crop === 'Basmati Rice' ? 'बासमती चावल' : 'चना',
       variety,
@@ -45,7 +45,6 @@ export function ListProduceModal() {
       district,
       location: location || `${district}, ${stateName}`,
       status: 'Active',
-      isDemo: true,
     })
     setIsSubmitted(true)
     setTimeout(() => {

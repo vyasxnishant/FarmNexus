@@ -31,7 +31,7 @@ type TabType = 'All' | 'Active' | 'Draft' | 'Offers Received' | 'Sold' | 'Expire
 
 export function MyLotsView() {
   const navigate = useNavigate()
-  const { lots, deleteLot, pauseLot, publishDraftLot, lang } = useDashboard()
+  const { lots, deleteLot, pauseLot, publishDraftLot, currentUser, lang } = useDashboard()
 
   const [activeTab, setActiveTab] = useState<TabType>('All')
   const [searchQuery, setSearchQuery] = useState('')
@@ -42,22 +42,25 @@ export function MyLotsView() {
 
   const [deleteModalLot, setDeleteModalLot] = useState<CropLot | null>(null)
 
+  // Filter lots by authenticated farmer
+  const myLots = lots.filter(l => !currentUser || currentUser.user_type === 'ADMIN' || l.farmerId === currentUser.id)
+
   // Summary Metrics
-  const totalLots = lots.length
-  const activeLots = lots.filter((l) => l.status === 'Active').length
-  const offersReceivedLots = lots.filter((l) => l.activeOffersCount > 0).length
-  const soldLots = lots.filter((l) => l.status === 'Sold').length
-  const draftLots = lots.filter((l) => l.status === 'Draft').length
+  const totalLots = myLots.length
+  const activeLots = myLots.filter((l) => l.status === 'Active').length
+  const offersReceivedLots = myLots.filter((l) => l.activeOffersCount > 0).length
+  const soldLots = myLots.filter((l) => l.status === 'Sold').length
+  const draftLots = myLots.filter((l) => l.status === 'Draft').length
 
   const tabs: TabType[] = ['All', 'Active', 'Draft', 'Offers Received', 'Sold', 'Expired']
 
   // Available Crops, Grades & Locations for filter dropdowns
-  const availableCrops = ['All', ...Array.from(new Set(lots.map((l) => l.crop)))]
+  const availableCrops = ['All', ...Array.from(new Set(myLots.map((l) => l.crop)))]
   const availableGrades = ['All', 'Grade A', 'Grade A (Export)', 'Grade B', 'Grade C']
-  const availableLocations = ['All', ...Array.from(new Set(lots.map((l) => l.location.split(',')[0].trim())))]
+  const availableLocations = ['All', ...Array.from(new Set(myLots.map((l) => l.location.split(',')[0].trim())))]
 
   // Filter & Search Logic
-  const filteredLots = lots
+  const filteredLots = myLots
     .filter((lot) => {
       // Tab matching
       if (activeTab === 'Active' && lot.status !== 'Active') return false

@@ -24,11 +24,14 @@ import { Sparkline } from '../../ui/Sparkline'
 import { Button } from '../../ui/Button'
 
 export function OverviewView() {
-  const { profile, lots, offers, payments, marketData, setIsListModalOpen, lang } = useDashboard()
+  const { profile, lots, offers, payments, marketData, setIsListModalOpen, currentUser, lang } = useDashboard()
 
-  const activeLots = lots.filter(l => l.status === 'Active')
-  const totalProduceQtl = lots.reduce((acc, l) => (l.status === 'Active' || l.status === 'Draft' ? acc + l.quantityQtl : acc), 0)
-  const pendingOffers = offers.filter(o => o.status === 'Pending')
+  const myLots = lots.filter(l => !currentUser || currentUser.user_type === 'ADMIN' || l.farmerId === currentUser.id)
+  const myOffers = offers.filter(o => !currentUser || currentUser.user_type === 'ADMIN' || o.farmerId === currentUser.id || !o.farmerId)
+
+  const activeLots = myLots.filter(l => l.status === 'Active')
+  const totalProduceQtl = myLots.reduce((acc, l) => (l.status === 'Active' || l.status === 'Draft' ? acc + l.quantityQtl : acc), 0)
+  const pendingOffers = myOffers.filter(o => o.status === 'Pending')
   const totalPendingPayout = payments
     .filter(p => p.status === 'Pending' || p.status === 'Processing')
     .reduce((acc, p) => acc + p.amount, 0)

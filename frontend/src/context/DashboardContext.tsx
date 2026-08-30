@@ -85,6 +85,8 @@ export interface BuyerMatch {
 export interface Offer {
   id: string
   lotId: string
+  farmerId?: string
+  farmerName?: string
   lotTitle: string
   buyerId: string
   buyerName: string
@@ -796,8 +798,24 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   const acceptOffer = async (offerId: string) => {
     const res = await offerApi.accept(offerId)
     setOffers(prev =>
-      prev.map(o => (o.id === offerId ? { ...o, status: 'Accepted' } : o.lotId === res.data?.offer?.lot_id ? { ...o, status: 'Rejected' } : o))
+      prev.map(o => (o.id === offerId ? { ...o, status: 'Accepted' } : o.lotId === res.data?.offer?.lot_id && o.status === 'Pending' ? { ...o, status: 'Rejected' } : o))
     )
+    if (res.data?.offer) {
+      const acceptedOffer = res.data.offer
+      setLots(prev =>
+        prev.map(l => {
+          if (l.id === acceptedOffer.lot_id) {
+            const newQty = Math.max(0, l.quantityQtl - Number(acceptedOffer.quantity_qtl))
+            return {
+              ...l,
+              quantityQtl: newQty,
+              status: newQty === 0 ? 'Sold' : l.status,
+            }
+          }
+          return l
+        })
+      )
+    }
     if (res.data?.transaction) {
       setTransactions(prev => [mapBackendTransaction(res.data.transaction), ...prev])
     }
@@ -1092,6 +1110,8 @@ function mapBackendOffer(o: any): Offer {
   return {
     id: o.id,
     lotId: o.lot_id,
+    farmerId: o.farmer_id || o.farmerId,
+    farmerName: o.farmer_name || o.farmerName,
     lotTitle: o.lot_title || `Produce Lot ${o.lot_id}`,
     buyerId: o.buyer_id,
     buyerName: o.buyer_name || 'Verified Buyer',

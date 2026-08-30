@@ -157,7 +157,7 @@ export function CreateLotView({ isEditing = false }: CreateLotViewProps) {
   }
 
   // Handle Save Draft or Publish
-  const handleSave = (status: 'Draft' | 'Active') => {
+  const handleSave = async (status: 'Draft' | 'Active') => {
     if (status === 'Active' && !validateForm()) {
       window.scrollTo({ top: 0, behavior: 'smooth' })
       return
@@ -197,18 +197,24 @@ export function CreateLotView({ isEditing = false }: CreateLotViewProps) {
       status,
     }
 
-    setTimeout(() => {
+    setIsSubmitting(true)
+    setErrors({})
+
+    try {
       if (isEditing && lotId) {
-        updateLot(lotId, lotPayload)
+        await updateLot(lotId, lotPayload)
       } else {
-        addLot(lotPayload)
+        await addLot(lotPayload)
       }
       setIsSubmitting(false)
       setShowSuccessToast(true)
       setTimeout(() => {
         navigate('/farmer/lots')
-      }, 1000)
-    }, 600)
+      }, 800)
+    } catch (err: any) {
+      setErrors({ form: err.response?.data?.message || err.message || 'Failed to save lot.' })
+      setIsSubmitting(false)
+    }
   }
 
   return (

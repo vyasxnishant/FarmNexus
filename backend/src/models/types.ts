@@ -227,6 +227,8 @@ export interface AgmarknetGovRecord {
 export interface Offer {
   id: string
   lot_id: string
+  farmer_id?: string
+  farmer_name?: string
   lot_title?: string
   buyer_id: string
   buyer_name?: string
