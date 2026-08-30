@@ -167,6 +167,9 @@ export function TransactionDetailsView() {
         setIsProcessingPayment(false)
       })
       rzp.open()
+      setTimeout(() => {
+        setIsProcessingPayment(false)
+      }, 1000)
     } catch (err: any) {
       setPaymentError(err.response?.data?.message || err.message || 'Unable to open checkout gateway.')
       setIsProcessingPayment(false)

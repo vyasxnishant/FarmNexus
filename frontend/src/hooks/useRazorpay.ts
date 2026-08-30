@@ -20,21 +20,54 @@ export function useRazorpay() {
 
       if (window.Razorpay) {
         setIsLoaded(true)
+        setIsLoading(false)
         resolve(true)
         return
       }
 
-      setIsLoading(true)
-      const existingScript = document.getElementById('razorpay-checkout-script')
+      const existingScript = document.getElementById('razorpay-checkout-script') as HTMLScriptElement | null
+
       if (existingScript) {
-        existingScript.addEventListener('load', () => {
+        if (window.Razorpay) {
           setIsLoaded(true)
           setIsLoading(false)
           resolve(true)
-        })
+          return
+        }
+
+        let timeoutId: any = null
+        const onLoad = () => {
+          if (timeoutId) clearTimeout(timeoutId)
+          setIsLoaded(true)
+          setIsLoading(false)
+          resolve(Boolean(window.Razorpay))
+        }
+        const onError = () => {
+          if (timeoutId) clearTimeout(timeoutId)
+          setIsLoaded(false)
+          setIsLoading(false)
+          setError('Failed to load Razorpay Checkout SDK.')
+          resolve(false)
+        }
+
+        existingScript.addEventListener('load', onLoad, { once: true })
+        existingScript.addEventListener('error', onError, { once: true })
+
+        // Fallback check in case load event already fired
+        timeoutId = setTimeout(() => {
+          if (window.Razorpay) {
+            setIsLoaded(true)
+            setIsLoading(false)
+            resolve(true)
+          } else {
+            resolve(false)
+          }
+        }, 1500)
+
         return
       }
 
+      setIsLoading(true)
       const script = document.createElement('script')
       script.id = 'razorpay-checkout-script'
       script.src = 'https://checkout.razorpay.com/v1/checkout.js'
@@ -47,7 +80,7 @@ export function useRazorpay() {
       script.onerror = () => {
         setIsLoaded(false)
         setIsLoading(false)
-        setError('Failed to load secure Razorpay Checkout SDK. Please check your internet connection.')
+        setError('Failed to load secure Razorpay Checkout SDK.')
         resolve(false)
       }
       document.body.appendChild(script)
@@ -65,4 +98,3 @@ export function useRazorpay() {
     loadRazorpayScript,
   }
 }
-
