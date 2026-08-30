@@ -144,7 +144,10 @@ export function AdminMarketPricesView() {
                 <Database className="w-3.5 h-3.5 text-turmeric" />
                 MANDI PRICE DATA AUTHORITY
               </span>
-              <DemoDataBadge />
+              <span className="font-mono text-xs text-soil/70 bg-soil/5 border border-soil/15 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                <ShieldCheck className="w-3.5 h-3.5 text-datateal" />
+                Official Benchmark Pipeline
+              </span>
             </div>
             <h1 className="font-serif text-3xl md:text-4xl font-bold text-soil">
               APMC Mandi Price Feeds
@@ -205,89 +208,99 @@ export function AdminMarketPricesView() {
       </div>
 
       {/* Market Prices Table */}
-      <div className="bg-wheat rounded-3xl border border-soil/15 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs font-body text-soil">
-            <thead className="bg-soil/5 border-b border-soil/10 uppercase font-mono text-[10px] text-soil/60">
-              <tr>
-                <th className="py-3.5 px-4">APMC Mandi</th>
-                <th className="py-3.5 px-4">Commodity</th>
-                <th className="py-3.5 px-4">Min Price</th>
-                <th className="py-3.5 px-4">Modal Price</th>
-                <th className="py-3.5 px-4">Max Price</th>
-                <th className="py-3.5 px-4">24h Trend</th>
-                <th className="py-3.5 px-4">Updated</th>
-                <th className="py-3.5 px-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-soil/10">
-              {filteredPrices.map((item, idx) => (
-                <tr key={idx} className="hover:bg-soil/5 transition-colors">
-                  <td className="py-3.5 px-4">
-                    <span className="font-serif font-bold text-sm text-soil block">{item.mandi}</span>
-                    <span className="text-[10px] text-soil/50 font-body">{item.state} &bull; {item.distanceKm} km</span>
-                  </td>
-
-                  <td className="py-3.5 px-4">
-                    <span className="font-mono text-xs font-bold text-monsoon bg-soil/10 px-2 py-0.5 rounded-full">
-                      {item.crop}
-                    </span>
-                  </td>
-
-                  <td className="py-3.5 px-4 font-mono font-bold text-soil">
-                    ₹{item.minPrice.toLocaleString('en-IN')}
-                  </td>
-
-                  <td className="py-3.5 px-4">
-                    <span className="font-mono text-base font-bold text-datateal">
-                      ₹{item.modalPrice.toLocaleString('en-IN')}
-                    </span>
-                  </td>
-
-                  <td className="py-3.5 px-4 font-mono font-bold text-soil">
-                    ₹{item.maxPrice.toLocaleString('en-IN')}
-                  </td>
-
-                  <td className="py-3.5 px-4">
-                    <span className={`font-mono text-xs font-bold inline-flex items-center gap-1 ${
-                      item.trend === 'up' ? 'text-datateal' : item.trend === 'down' ? 'text-red-700' : 'text-soil/60'
-                    }`}>
-                      {item.trend === 'up' ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
-                      {item.priceChange > 0 ? `+${item.priceChange}%` : `${item.priceChange}%`}
-                    </span>
-                  </td>
-
-                  <td className="py-3.5 px-4 font-mono text-[10px] text-soil/50">
-                    {item.lastUpdated}
-                  </td>
-
-                  <td className="py-3.5 px-4 text-right">
-                    <div className="flex items-center justify-end gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => handleOpenEdit(item)}
-                        className="p-1.5 rounded-lg bg-soil/5 hover:bg-soil/10 text-soil transition-colors cursor-pointer"
-                        title="Edit Price Record"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setDeleteConfirm(item)}
-                        className="p-1.5 rounded-lg bg-red-500/10 text-red-700 hover:bg-red-500/20 transition-colors cursor-pointer"
-                        title="Delete Price Record"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {filteredPrices.length === 0 ? (
+        <div className="bg-wheat rounded-3xl border border-soil/15 p-12 text-center space-y-3 shadow-sm">
+          <Database className="w-12 h-12 text-soil/30 mx-auto" />
+          <h3 className="font-serif text-xl font-bold text-soil">No market data available</h3>
+          <p className="font-body text-xs text-soil/60 max-w-md mx-auto">
+            No matching mandi price records found. Click &quot;Publish New Market Price&quot; above to add validated APMC price feeds or configure AGMARKNET stream.
+          </p>
         </div>
-      </div>
+      ) : (
+        <div className="bg-wheat rounded-3xl border border-soil/15 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs font-body text-soil">
+              <thead className="bg-soil/5 border-b border-soil/10 uppercase font-mono text-[10px] text-soil/60">
+                <tr>
+                  <th className="py-3.5 px-4">APMC Mandi</th>
+                  <th className="py-3.5 px-4">Commodity</th>
+                  <th className="py-3.5 px-4">Min Price</th>
+                  <th className="py-3.5 px-4">Modal Price</th>
+                  <th className="py-3.5 px-4">Max Price</th>
+                  <th className="py-3.5 px-4">24h Trend</th>
+                  <th className="py-3.5 px-4">Updated</th>
+                  <th className="py-3.5 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-soil/10">
+                {filteredPrices.map((item, idx) => (
+                  <tr key={idx} className="hover:bg-soil/5 transition-colors">
+                    <td className="py-3.5 px-4">
+                      <span className="font-serif font-bold text-sm text-soil block">{item.mandi}</span>
+                      <span className="text-[10px] text-soil/50 font-body">{item.state} &bull; {item.distanceKm} km</span>
+                    </td>
+
+                    <td className="py-3.5 px-4">
+                      <span className="font-mono text-xs font-bold text-monsoon bg-soil/10 px-2 py-0.5 rounded-full">
+                        {item.crop}
+                      </span>
+                    </td>
+
+                    <td className="py-3.5 px-4 font-mono font-bold text-soil">
+                      ₹{item.minPrice.toLocaleString('en-IN')}
+                    </td>
+
+                    <td className="py-3.5 px-4">
+                      <span className="font-mono text-base font-bold text-datateal">
+                        ₹{item.modalPrice.toLocaleString('en-IN')}
+                      </span>
+                    </td>
+
+                    <td className="py-3.5 px-4 font-mono font-bold text-soil">
+                      ₹{item.maxPrice.toLocaleString('en-IN')}
+                    </td>
+
+                    <td className="py-3.5 px-4">
+                      <span className={`font-mono text-xs font-bold inline-flex items-center gap-1 ${
+                        item.trend === 'up' ? 'text-datateal' : item.trend === 'down' ? 'text-red-700' : 'text-soil/60'
+                      }`}>
+                        {item.trend === 'up' ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
+                        {item.priceChange > 0 ? `+${item.priceChange}%` : `${item.priceChange}%`}
+                      </span>
+                    </td>
+
+                    <td className="py-3.5 px-4 font-mono text-[10px] text-soil/50">
+                      {item.lastUpdated}
+                    </td>
+
+                    <td className="py-3.5 px-4 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEdit(item)}
+                          className="p-1.5 rounded-lg bg-soil/5 hover:bg-soil/10 text-soil transition-colors cursor-pointer"
+                          title="Edit Price Record"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setDeleteConfirm(item)}
+                          className="p-1.5 rounded-lg bg-red-500/10 text-red-700 hover:bg-red-500/20 transition-colors cursor-pointer"
+                          title="Delete Price Record"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Add / Edit Market Price Modal */}
       {isAddModalOpen && (

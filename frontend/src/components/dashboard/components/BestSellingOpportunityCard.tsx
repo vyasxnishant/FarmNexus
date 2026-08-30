@@ -48,8 +48,8 @@ export function BestSellingOpportunityCard({
     return (
       <div className="bg-wheat rounded-3xl border border-soil/15 p-6 text-center text-soil/60 font-body text-xs">
         <Package className="w-8 h-8 mx-auto text-soil/30 mb-2" />
-        <p className="font-semibold text-soil text-sm">{lang === 'en' ? 'No Mandi Data Available for Selected Commodity' : 'चयनित फसल के लिए कोई मंडी डेटा उपलब्ध नहीं'}</p>
-        <p className="mt-1">{lang === 'en' ? 'Select a different crop from the filter bar above.' : 'कृपया ऊपर दिए गए फिल्टर से दूसरी फसल चुनें।'}</p>
+        <p className="font-semibold text-soil text-sm">{lang === 'en' ? 'No market data available' : 'कोई मंडी डेटा उपलब्ध नहीं है'}</p>
+        <p className="mt-1">{lang === 'en' ? 'No live price feeds currently available for this commodity.' : 'इस फसल के लिए कोई लाइव मंडी भाव उपलब्ध नहीं हैं।'}</p>
       </div>
     )
   }

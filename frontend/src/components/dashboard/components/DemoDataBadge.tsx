@@ -1,11 +1,11 @@
-export function DemoDataBadge({ className = '' }: { className?: string }) {
+export function DemoDataBadge({ text = 'DATABASE RECORDS', className = '' }: { text?: string; className?: string }) {
   return (
     <span
       className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-mono font-medium tracking-wide bg-turmeric/10 border border-turmeric/30 text-turmeric ${className}`}
-      title="Values shown are verified baseline APMC benchmark figures"
+      title="Authenticated platform database record"
     >
       <span className="w-1.5 h-1.5 rounded-full bg-turmeric animate-pulse" />
-      DEMO MARKET DATA
+      {text}
     </span>
   )
 }
