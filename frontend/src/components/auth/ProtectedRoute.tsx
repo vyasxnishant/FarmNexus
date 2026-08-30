@@ -26,11 +26,8 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
   }
 
   if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(currentUser.user_type)) {
-    // Redirect to their own dashboard
-    if (currentUser.user_type === 'FARMER') return <Navigate to="/farmer" replace />
-    if (currentUser.user_type === 'BUYER') return <Navigate to="/buyer/dashboard" replace />
-    if (currentUser.user_type === 'ADMIN') return <Navigate to="/admin/dashboard" replace />
-    return <Navigate to="/" replace />
+    // Redirect to Access Denied page with attempted path
+    return <Navigate to="/unauthorized" state={{ from: location.pathname }} replace />
   }
 
   return <>{children}</>

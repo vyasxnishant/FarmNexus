@@ -879,3 +879,4 @@ export function isValidDistrictForState(stateName: string, districtName: string)
   const target = districtName.trim().toLowerCase()
   return districts.some(d => d.toLowerCase() === target)
 }
+

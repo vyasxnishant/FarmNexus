@@ -25,6 +25,11 @@ export class AuthService {
       throw new Error('An account with this email address already exists.')
     }
 
+    // Role Security: Public registration NEVER allows ADMIN creation
+    if (data.user_type === 'ADMIN' || !['FARMER', 'BUYER'].includes(data.user_type)) {
+      throw new Error('Unauthorized role: Public registration is strictly restricted to FARMER and BUYER accounts.')
+    }
+
     // Validate State and District combination
     if (data.state && !isValidState(data.state)) {
       throw new Error(`Invalid state: "${data.state}" is not a recognized Indian State or Union Territory.`)

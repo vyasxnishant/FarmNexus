@@ -4,6 +4,7 @@ import { DashboardProvider } from './context/DashboardContext'
 import { DashboardLayout } from './components/dashboard/DashboardLayout'
 import { LoginView } from './components/auth/LoginView'
 import { RegisterView } from './components/auth/RegisterView'
+import { UnauthorizedView } from './components/auth/UnauthorizedView'
 import { ProtectedRoute } from './components/auth/ProtectedRoute'
 
 // Farmer Views
@@ -49,6 +50,7 @@ export default function App() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginView />} />
           <Route path="/register" element={<RegisterView />} />
+          <Route path="/unauthorized" element={<UnauthorizedView />} />
 
           {/* Authenticated Global Profile Route */}
           <Route
