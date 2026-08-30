@@ -155,13 +155,14 @@ export function AdminTransactionsView() {
                   </td>
 
                   <td className="py-3.5 px-4 text-right">
-                    <Link
-                      to={`/farmer/transactions/${txn.id}`}
-                      className="p-1.5 rounded-lg bg-soil/5 hover:bg-soil/10 text-soil inline-flex items-center gap-1 transition-colors"
+                    <button
+                      type="button"
+                      onClick={() => setSelectedTxn(txn)}
+                      className="p-1.5 rounded-lg bg-soil/5 hover:bg-soil/10 text-soil inline-flex items-center gap-1 transition-colors cursor-pointer"
                       title="Inspect Contract"
                     >
                       <Eye className="w-4 h-4" />
-                    </Link>
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -169,6 +170,74 @@ export function AdminTransactionsView() {
           </table>
         </div>
       </div>
+
+      {/* Admin Transaction Contract Inspection Modal */}
+      {selectedTxn && (
+        <div className="fixed inset-0 z-50 bg-monsoon/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-wheat rounded-3xl border border-soil/15 max-w-xl w-full p-6 md:p-8 space-y-5 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-soil/10">
+              <div className="flex items-center gap-2">
+                <Receipt className="w-5 h-5 text-turmeric" />
+                <h3 className="font-serif text-xl font-bold text-soil">Trade Contract & Escrow Record</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedTxn(null)}
+                className="text-soil/40 hover:text-soil text-xl font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-4 bg-monsoon text-wheat rounded-2xl space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-xs font-bold text-turmeric">{selectedTxn.id}</span>
+                <span className="font-mono text-xs text-datateal font-bold bg-wheat/10 px-2 py-0.5 rounded-full">
+                  {selectedTxn.transactionStatus}
+                </span>
+              </div>
+              <h4 className="font-serif text-2xl font-bold text-wheat">{selectedTxn.crop}</h4>
+              <p className="text-xs text-wheat/80">
+                {selectedTxn.quantityQtl} {selectedTxn.unit} &bull; Final: ₹{selectedTxn.finalAmount.toLocaleString('en-IN')}
+              </p>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-3 text-xs font-body text-soil">
+              <div className="p-3 bg-soil/5 rounded-xl border border-soil/10">
+                <span className="text-soil/50 block text-[11px]">Producer / Farmer</span>
+                <strong className="text-soil block mt-0.5">{selectedTxn.farmerName}</strong>
+                <span className="text-soil/60 block">{selectedTxn.farmerLocation}</span>
+              </div>
+
+              <div className="p-3 bg-soil/5 rounded-xl border border-soil/10">
+                <span className="text-soil/50 block text-[11px]">Buyer Enterprise</span>
+                <strong className="text-soil block mt-0.5">{selectedTxn.buyerOrganization}</strong>
+                <span className="text-soil/60 block">Rep: {selectedTxn.buyerName}</span>
+              </div>
+
+              <div className="p-3 bg-soil/5 rounded-xl border border-soil/10">
+                <span className="text-soil/50 block text-[11px]">Agreed Rate</span>
+                <strong className="font-mono text-soil block mt-0.5">₹{selectedTxn.agreedPricePerQtl}/qtl</strong>
+              </div>
+
+              <div className="p-3 bg-soil/5 rounded-xl border border-soil/10">
+                <span className="text-soil/50 block text-[11px]">Payment Settlement</span>
+                <strong className="font-mono text-datateal block mt-0.5">{selectedTxn.paymentStatus}</strong>
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-soil/10 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setSelectedTxn(null)}
+                className="px-5 py-2 bg-monsoon text-wheat font-body text-xs font-bold rounded-xl cursor-pointer"
+              >
+                Close Contract
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

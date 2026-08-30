@@ -38,8 +38,7 @@ export function AdminDashboardView() {
     marketData,
     auditLogs,
     lang,
-    userRole,
-    setUserRole,
+    currentUser,
   } = useDashboard()
 
   const [systemStatus, setSystemStatus] = useState<any>(null)
@@ -97,17 +96,11 @@ export function AdminDashboardView() {
             </p>
           </div>
 
-          <div className="flex items-center gap-2 bg-monsoon p-2 rounded-2xl border border-turmeric/30">
-            <span className="text-[11px] font-mono text-wheat/80 px-2">ACTIVE ROLE:</span>
-            <select
-              value={userRole}
-              onChange={(e) => setUserRole(e.target.value as any)}
-              className="bg-wheat text-monsoon font-body text-xs font-bold px-3 py-1.5 rounded-xl cursor-pointer focus:outline-none"
-            >
-              <option value="admin">Admin Portal</option>
-              <option value="farmer">Farmer Hub</option>
-              <option value="buyer">Buyer Desk</option>
-            </select>
+          <div className="flex items-center gap-2 bg-monsoon px-3.5 py-2 rounded-2xl border border-turmeric/30">
+            <span className="w-2 h-2 rounded-full bg-datateal animate-pulse" />
+            <span className="text-[11px] font-mono font-bold text-turmeric uppercase tracking-wider">
+              {currentUser?.user_type || 'ADMIN'} DESK
+            </span>
           </div>
         </div>
 

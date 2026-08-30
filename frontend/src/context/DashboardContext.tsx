@@ -446,7 +446,10 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   const [lang, setLang] = useState<'en' | 'hi'>('en')
   const [currentUser, setCurrentUser] = useState<AuthenticatedUser | null>(null)
   const [isLoadingAuth, setIsLoadingAuth] = useState<boolean>(true)
-  const [userRole, setUserRoleState] = useState<UserRole>('farmer')
+  const userRole: UserRole = currentUser ? (currentUser.user_type.toLowerCase() as UserRole) : 'farmer'
+  const setUserRole = (_role: UserRole) => {
+    // Role is strictly immutable and derived directly from server-authenticated session/JWT
+  }
 
   // User-specific database records
   const [profile, setProfile] = useState<FarmerProfile>({
@@ -497,15 +500,9 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   const [isListModalOpen, setIsListModalOpen] = useState(false)
   const [counterModalOffer, setCounterModalOffer] = useState<Offer | null>(null)
 
-  const setUserRole = (role: UserRole) => {
-    setUserRoleState(role)
-  }
-
   // Fetch Authenticated User's own data from PostgreSQL backend
   const loadUserData = async (user: AuthenticatedUser) => {
     try {
-      const roleStr = user.user_type.toLowerCase() as UserRole
-      setUserRoleState(roleStr)
 
       // 1. Set Profile state
       if (user.user_type === 'FARMER') {
