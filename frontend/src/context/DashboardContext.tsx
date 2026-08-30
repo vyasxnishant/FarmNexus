@@ -783,15 +783,30 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   // Accept Offer
   const acceptOffer = async (offerId: string) => {
     const res = await offerApi.accept(offerId)
-    setOffers(prev =>
-      prev.map(o => (o.id === offerId ? { ...o, status: 'Accepted' } : o.lotId === res.data?.offer?.lot_id && o.status === 'Pending' ? { ...o, status: 'Rejected' } : o))
-    )
-    if (res.data?.offer) {
-      const acceptedOffer = res.data.offer
+    const acceptedOffer = res.data?.offer
+    const targetLotId = acceptedOffer?.lot_id || offers.find(o => o.id === offerId)?.lotId
+
+    if (acceptedOffer) {
+      const currentLot = lots.find(l => l.id === targetLotId)
+      const currentQty = currentLot ? currentLot.quantityQtl : Number(acceptedOffer.quantity_qtl)
+      const newQty = Math.max(0, currentQty - Number(acceptedOffer.quantity_qtl))
+
+      setOffers(prev =>
+        prev.map(o => {
+          if (o.id === offerId) {
+            return { ...o, status: 'Accepted' }
+          }
+          // Reject other pending offers on this lot only if their requested volume exceeds the new remaining quantity
+          if (o.lotId === targetLotId && o.status === 'Pending' && o.quantityQtl > newQty) {
+            return { ...o, status: 'Rejected' }
+          }
+          return o
+        })
+      )
+
       setLots(prev =>
         prev.map(l => {
-          if (l.id === acceptedOffer.lot_id) {
-            const newQty = Math.max(0, l.quantityQtl - Number(acceptedOffer.quantity_qtl))
+          if (l.id === targetLotId) {
             return {
               ...l,
               quantityQtl: newQty,
@@ -801,7 +816,12 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           return l
         })
       )
+    } else {
+      setOffers(prev =>
+        prev.map(o => (o.id === offerId ? { ...o, status: 'Accepted' } : o))
+      )
     }
+
     if (res.data?.transaction) {
       setTransactions(prev => [mapBackendTransaction(res.data.transaction), ...prev])
     }
