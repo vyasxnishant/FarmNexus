@@ -20,6 +20,25 @@ export const authApi = {
   },
 }
 
+// 1.1 Settlement Bank APIs
+export const bankApi = {
+  getBankDetails: async () => {
+    const res = await apiClient.get('/farmer/bank-details')
+    return res.data
+  },
+  updateBankDetails: async (payload: {
+    account_holder_name: string
+    bank_name: string
+    account_number: string
+    confirm_account_number: string
+    ifsc_code: string
+    upi_id?: string
+  }) => {
+    const res = await apiClient.put('/farmer/bank-details', payload)
+    return res.data
+  },
+}
+
 // 2. Lots & Quality APIs
 export const lotApi = {
   getAll: async (params?: { crop?: string; grade?: string; status?: string; search?: string }) => {

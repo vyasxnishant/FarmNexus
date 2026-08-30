@@ -18,7 +18,7 @@ export class PaymentService {
     }
 
     const orderId = `ORDER-FN-${Date.now().toString().slice(-6)}`
-    const escrowVirtualAccount = `ESC-ICICI-VPA-${txn.id.replace(/-/g, '')}`
+    const escrowVirtualAccount = `DEMO-ESCROW-VPA-${txn.id.replace(/-/g, '')}`
     const referenceId = `REF-${crypto.randomBytes(4).toString('hex').toUpperCase()}`
     const now = new Date().toISOString()
 

@@ -19,6 +19,7 @@ import pricingIntelligenceRoutes from './pricingIntelligenceRoutes.js'
 import adminRoutes from './adminRoutes.js'
 import weatherRoutes from './weatherRoutes.js'
 import externalDataRoutes from './externalDataRoutes.js'
+import bankRoutes from './bankRoutes.js'
 
 const router = Router()
 
@@ -51,6 +52,7 @@ router.use('/price-intelligence', pricingIntelligenceRoutes)
 router.use('/admin', adminRoutes)
 router.use('/weather', weatherRoutes)
 router.use('/external', externalDataRoutes)
+router.use('/farmer/bank-details', bankRoutes)
 
 // Market Prices Endpoints
 router.get('/market-prices', validatePriceQuery, MarketPriceController.getMarketPrices)

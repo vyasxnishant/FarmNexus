@@ -33,8 +33,15 @@ export interface FarmerProfile {
   fpo_role?: string
   total_land_acres?: number
   kisan_credit_card_verified?: boolean
+  bank_name?: string
+  account_holder_name?: string
+  bank_account_encrypted?: string
   bank_account_masked?: string
+  ifsc_code?: string
+  ifsc_code_masked?: string
   upi_id?: string
+  upi_id_masked?: string
+  is_bank_configured?: boolean
   village?: string
   district?: string
   state?: string
