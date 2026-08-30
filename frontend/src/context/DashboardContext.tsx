@@ -822,8 +822,24 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   }
 
   const rejectOffer = async (offerId: string) => {
+    // Find the offer's lotId before updating status
+    const rejectedOffer = offers.find(o => o.id === offerId)
     await offerApi.reject(offerId)
     setOffers(prev => prev.map(o => (o.id === offerId ? { ...o, status: 'Rejected' } : o)))
+
+    // Decrement lot's activeOffersCount
+    if (rejectedOffer) {
+      setLots(prev => prev.map(lot => {
+        if (lot.id === rejectedOffer.lotId) {
+          const newCount = Math.max(0, lot.activeOffersCount - 1)
+          // Recalculate highest offer from remaining pending offers
+          const remainingPending = offers.filter(o => o.lotId === lot.id && o.id !== offerId && o.status === 'Pending')
+          const newHighest = remainingPending.length > 0 ? Math.max(...remainingPending.map(o => o.offeredPrice)) : undefined
+          return { ...lot, activeOffersCount: newCount, highestOffer: newHighest }
+        }
+        return lot
+      }))
+    }
   }
 
   const counterOffer = async (offerId: string, counterPrice: number) => {
@@ -868,6 +884,21 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     }
 
     setOffers(prev => [newOffer, ...prev])
+
+    // Update the corresponding lot's activeOffersCount and highestOffer
+    setLots(prev => prev.map(lot => {
+      if (lot.id === offerData.lotId) {
+        const newCount = lot.activeOffersCount + 1
+        const newHighest = Math.max(lot.highestOffer || 0, offerData.offeredPrice)
+        return {
+          ...lot,
+          activeOffersCount: newCount,
+          highestOffer: newHighest,
+        }
+      }
+      return lot
+    }))
+
     return newOffer.id
   }
 
@@ -1101,18 +1132,19 @@ function mapBackendLot(l: any): CropLot {
     pickupLocation: l.pickup_location || 'Farm Godown',
     status: l.status || 'Active',
     createdAt: l.created_at || 'Just now',
-    matchedBuyersCount: 4,
-    activeOffersCount: 0,
+    matchedBuyersCount: l.matched_buyers_count || 4,
+    activeOffersCount: Number(l.active_offers_count) || 0,
+    highestOffer: Number(l.highest_offer) || undefined,
   }
 }
 
 function mapBackendOffer(o: any): Offer {
   return {
     id: o.id,
-    lotId: o.lot_id,
+    lotId: o.lot_id || o.lotId,
     farmerId: o.farmer_id || o.farmerId,
     farmerName: o.farmer_name || o.farmerName,
-    lotTitle: o.lot_title || `Produce Lot ${o.lot_id}`,
+    lotTitle: o.lot_title || `Produce Lot ${o.lot_id || o.lotId}`,
     buyerId: o.buyer_id,
     buyerName: o.buyer_name || 'Verified Buyer',
     buyerCompany: o.buyer_company || 'Corporate Procurement',

@@ -30,9 +30,12 @@ import { WeatherWidget } from '../components/WeatherWidget'
 export function LotDetailsView() {
   const { lotId } = useParams<{ lotId: string }>()
   const navigate = useNavigate()
-  const { getLotById, pauseLot, deleteLot, publishDraftLot, lang } = useDashboard()
+  const { getLotById, offers, acceptOffer, rejectOffer, pauseLot, deleteLot, publishDraftLot, lang } = useDashboard()
 
   const lot = lotId ? getLotById(lotId) : undefined
+
+  // Compute offers for THIS specific lot from the shared offers state
+  const lotOffers = offers.filter(o => o.lotId === lotId)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
 
   if (!lot) {
@@ -65,7 +68,7 @@ export function LotDetailsView() {
     { title: 'Lot Created', desc: 'Harvest registered', completed: true },
     { title: 'Published to Network', desc: 'Live to verified buyers', completed: lot.status !== 'Draft' },
     { title: 'Buyer Matched', desc: `${lot.matchedBuyersCount} buyers matching specs`, completed: lot.matchedBuyersCount > 0 && lot.status !== 'Draft' },
-    { title: 'Offer Received', desc: lot.activeOffersCount > 0 ? `${lot.activeOffersCount} active offers` : 'Awaiting bids', completed: lot.activeOffersCount > 0 },
+    { title: 'Offer Received', desc: lotOffers.length > 0 ? `${lotOffers.length} active offers` : 'Awaiting bids', completed: lotOffers.length > 0 },
     { title: 'Offer Accepted', desc: lot.status === 'Sold' ? 'Deal agreed' : 'Pending agreement', completed: lot.status === 'Sold' },
     { title: 'Logistics Arranged', desc: 'Pickup scheduled', completed: lot.status === 'Sold' },
     { title: 'Delivered to Mandi/Buyer', desc: 'Weighment confirmed', completed: lot.status === 'Sold' },
@@ -490,30 +493,105 @@ export function LotDetailsView() {
             </Link>
           </div>
 
-          {/* Active Offers Placeholder */}
+          {/* Offers Received for this Lot */}
           <div className="bg-wheat rounded-3xl border border-soil/15 p-6 shadow-sm space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Receipt className="w-5 h-5 text-turmeric" />
                 <h4 className="font-serif text-lg font-bold text-soil">
-                  {lang === 'en' ? 'Incoming Offers' : 'प्राप्त ऑफ़र'}
+                  {lang === 'en' ? 'Offers Received' : 'प्राप्त ऑफ़र'}
                 </h4>
               </div>
               <span className="font-mono text-xs font-bold text-soil bg-soil/10 px-2 py-0.5 rounded-full">
-                {lot.activeOffersCount} Offers
+                {lotOffers.length} {lotOffers.length === 1 ? 'Offer' : 'Offers'}
               </span>
             </div>
 
-            {lot.highestOffer ? (
-              <div className="p-3 bg-soil/5 rounded-2xl border border-soil/10">
-                <span className="font-body text-[11px] text-soil/60 block">HIGHEST BID RECEIVED</span>
-                <p className="font-mono text-xl font-bold text-datateal mt-0.5">
-                  ₹{lot.highestOffer.toLocaleString('en-IN')}<span className="text-xs font-normal text-soil/60">/qtl</span>
-                </p>
+            {lotOffers.length > 0 ? (
+              <div className="space-y-3">
+                {/* Highest Bid Summary */}
+                {(() => {
+                  const pendingOffers = lotOffers.filter(o => o.status === 'Pending')
+                  const highest = pendingOffers.length > 0
+                    ? Math.max(...pendingOffers.map(o => o.offeredPrice))
+                    : (lot.highestOffer || 0)
+                  return highest > 0 ? (
+                    <div className="p-3 bg-soil/5 rounded-2xl border border-soil/10">
+                      <span className="font-body text-[11px] text-soil/60 block">HIGHEST BID RECEIVED</span>
+                      <p className="font-mono text-xl font-bold text-datateal mt-0.5">
+                        ₹{highest.toLocaleString('en-IN')}<span className="text-xs font-normal text-soil/60">/qtl</span>
+                      </p>
+                    </div>
+                  ) : null
+                })()}
+
+                {/* Individual Bid Cards */}
+                {lotOffers.map(offer => (
+                  <div key={offer.id} className={`p-4 rounded-2xl border ${
+                    offer.status === 'Accepted' ? 'bg-datateal/10 border-datateal/30' :
+                    offer.status === 'Rejected' ? 'bg-red-50 border-red-200' :
+                    'bg-soil/5 border-soil/15'
+                  }`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-body text-xs font-bold text-soil truncate">
+                            {offer.buyerName}
+                          </span>
+                          {offer.buyerVerified && (
+                            <ShieldCheck className="w-3.5 h-3.5 text-datateal flex-shrink-0" />
+                          )}
+                        </div>
+                        <p className="font-body text-[11px] text-soil/60">{offer.buyerCompany}</p>
+                      </div>
+                      <span className={`font-mono text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${
+                        offer.status === 'Pending' ? 'bg-turmeric/20 text-turmeric' :
+                        offer.status === 'Accepted' ? 'bg-datateal/20 text-datateal' :
+                        offer.status === 'Rejected' ? 'bg-red-100 text-red-700' :
+                        'bg-soil/10 text-soil/70'
+                      }`}>
+                        {offer.status}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 mt-3">
+                      <div>
+                        <span className="font-body text-[10px] text-soil/50 block">BID PRICE</span>
+                        <span className="font-mono text-xs font-bold text-soil">₹{offer.offeredPrice.toLocaleString('en-IN')}/qtl</span>
+                      </div>
+                      <div>
+                        <span className="font-body text-[10px] text-soil/50 block">QUANTITY</span>
+                        <span className="font-mono text-xs font-bold text-soil">{offer.quantityQtl} qtl</span>
+                      </div>
+                      <div>
+                        <span className="font-body text-[10px] text-soil/50 block">TOTAL VALUE</span>
+                        <span className="font-mono text-xs font-bold text-datateal">₹{offer.totalAmount.toLocaleString('en-IN')}</span>
+                      </div>
+                    </div>
+
+                    {offer.status === 'Pending' && (
+                      <div className="flex items-center gap-2 mt-3 pt-3 border-t border-soil/10">
+                        <button
+                          onClick={() => acceptOffer(offer.id)}
+                          className="flex-1 py-2 px-3 rounded-xl bg-datateal text-wheat font-body text-xs font-bold hover:bg-datateal/90 transition-colors cursor-pointer flex items-center justify-center gap-1"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>{lang === 'en' ? 'Accept' : 'स्वीकार'}</span>
+                        </button>
+                        <button
+                          onClick={() => rejectOffer(offer.id)}
+                          className="flex-1 py-2 px-3 rounded-xl bg-soil/10 text-soil font-body text-xs font-bold hover:bg-soil/15 transition-colors cursor-pointer flex items-center justify-center gap-1"
+                        >
+                          <span>{lang === 'en' ? 'Reject' : 'अस्वीकार'}</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             ) : (
               <p className="font-body text-xs text-soil/60 italic">
-                {lang === 'en' ? 'No active bids placed yet for this lot.' : 'इस लॉट पर अभी कोई नई बोली नहीं आई है।'}
+                {lang === 'en' ? 'No bids placed yet for this lot.' : 'इस लॉट पर अभी कोई नई बोली नहीं आई है।'}
               </p>
             )}
 
@@ -521,7 +599,7 @@ export function LotDetailsView() {
               to="/farmer/offers"
               className="w-full py-2.5 px-4 rounded-xl bg-soil/5 border border-soil/20 text-soil font-body text-xs font-bold hover:bg-soil/10 transition-all flex items-center justify-center gap-2"
             >
-              <span>{lang === 'en' ? 'Check Offer Bids' : 'ऑफ़र विवरण देखें'}</span>
+              <span>{lang === 'en' ? 'View All Incoming Offers' : 'सभी ऑफ़र देखें'}</span>
             </Link>
           </div>
         </div>

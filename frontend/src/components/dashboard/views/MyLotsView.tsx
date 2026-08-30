@@ -23,7 +23,8 @@ import {
   ChevronRight,
   AlertTriangle,
   CreditCard,
-  TrendingUp
+  TrendingUp,
+  ShieldCheck
 } from 'lucide-react'
 import { useDashboard, type CropLot, type LotStatus } from '../../../context/DashboardContext'
 
@@ -31,7 +32,7 @@ type TabType = 'All' | 'Active' | 'Draft' | 'Offers Received' | 'Sold' | 'Expire
 
 export function MyLotsView() {
   const navigate = useNavigate()
-  const { lots, deleteLot, pauseLot, publishDraftLot, currentUser, lang } = useDashboard()
+  const { lots, offers, acceptOffer, rejectOffer, deleteLot, pauseLot, publishDraftLot, currentUser, lang } = useDashboard()
 
   const [activeTab, setActiveTab] = useState<TabType>('All')
   const [searchQuery, setSearchQuery] = useState('')
@@ -45,27 +46,44 @@ export function MyLotsView() {
   // Filter lots by authenticated farmer
   const myLots = lots.filter(l => !currentUser || currentUser.user_type === 'ADMIN' || l.farmerId === currentUser.id)
 
+  // Map each lot with dynamically calculated offers based on exact lot.id match
+  const myLotsWithOffers = myLots.map(lot => {
+    const lotOffers = offers.filter(o => o.lotId === lot.id)
+    const pendingOffers = lotOffers.filter(o => o.status === 'Pending')
+    const activeOffersCount = pendingOffers.length || (lotOffers.length > 0 ? lotOffers.length : (lot.activeOffersCount || 0))
+    const highestOffer = pendingOffers.length > 0
+      ? Math.max(...pendingOffers.map(o => o.offeredPrice))
+      : (lotOffers.length > 0 ? Math.max(...lotOffers.map(o => o.offeredPrice)) : lot.highestOffer)
+
+    return {
+      ...lot,
+      lotOffers,
+      activeOffersCount,
+      highestOffer,
+    }
+  })
+
   // Summary Metrics
-  const totalLots = myLots.length
-  const activeLots = myLots.filter((l) => l.status === 'Active').length
-  const offersReceivedLots = myLots.filter((l) => l.activeOffersCount > 0).length
-  const soldLots = myLots.filter((l) => l.status === 'Sold').length
-  const draftLots = myLots.filter((l) => l.status === 'Draft').length
+  const totalLots = myLotsWithOffers.length
+  const activeLots = myLotsWithOffers.filter((l) => l.status === 'Active').length
+  const offersReceivedLots = myLotsWithOffers.filter((l) => l.lotOffers.length > 0 || l.activeOffersCount > 0).length
+  const soldLots = myLotsWithOffers.filter((l) => l.status === 'Sold').length
+  const draftLots = myLotsWithOffers.filter((l) => l.status === 'Draft').length
 
   const tabs: TabType[] = ['All', 'Active', 'Draft', 'Offers Received', 'Sold', 'Expired']
 
   // Available Crops, Grades & Locations for filter dropdowns
-  const availableCrops = ['All', ...Array.from(new Set(myLots.map((l) => l.crop)))]
+  const availableCrops = ['All', ...Array.from(new Set(myLotsWithOffers.map((l) => l.crop)))]
   const availableGrades = ['All', 'Grade A', 'Grade A (Export)', 'Grade B', 'Grade C']
-  const availableLocations = ['All', ...Array.from(new Set(myLots.map((l) => l.location.split(',')[0].trim())))]
+  const availableLocations = ['All', ...Array.from(new Set(myLotsWithOffers.map((l) => l.location.split(',')[0].trim())))]
 
   // Filter & Search Logic
-  const filteredLots = myLots
+  const filteredLots = myLotsWithOffers
     .filter((lot) => {
       // Tab matching
       if (activeTab === 'Active' && lot.status !== 'Active') return false
       if (activeTab === 'Draft' && lot.status !== 'Draft') return false
-      if (activeTab === 'Offers Received' && lot.activeOffersCount === 0) return false
+      if (activeTab === 'Offers Received' && lot.lotOffers.length === 0 && lot.activeOffersCount === 0) return false
       if (activeTab === 'Sold' && lot.status !== 'Sold') return false
       if (activeTab === 'Expired' && lot.status !== 'Expired') return false
 
@@ -389,7 +407,7 @@ export function MyLotsView() {
                     </div>
                   </div>
 
-                  {/* Highest Offer Callout if active offers exist */}
+                  {/* Highest Offer Callout & Received Bids List */}
                   {lot.highestOffer && (
                     <div className="mt-3 p-2.5 bg-turmeric/10 rounded-xl border border-turmeric/30 flex items-center justify-between">
                       <div className="flex items-center gap-1.5 text-soil font-body text-xs">
@@ -397,8 +415,94 @@ export function MyLotsView() {
                         <span>Best Buyer Bid:</span>
                       </div>
                       <span className="font-mono text-xs font-bold text-soil">
-                        ₹{lot.highestOffer.toLocaleString('en-IN')}/qtl ({lot.activeOffersCount} offers)
+                        ₹{lot.highestOffer.toLocaleString('en-IN')}/qtl ({lot.activeOffersCount} {lot.activeOffersCount === 1 ? 'offer' : 'offers'})
                       </span>
+                    </div>
+                  )}
+
+                  {/* Received Bids on this Lot */}
+                  {lot.lotOffers && lot.lotOffers.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-soil/10 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-body text-xs font-bold text-soil flex items-center gap-1.5">
+                          <Receipt className="w-3.5 h-3.5 text-turmeric" />
+                          {lang === 'en' ? 'Offers Received' : 'प्राप्त ऑफ़र'} ({lot.lotOffers.length})
+                        </span>
+                        <Link
+                          to={`/farmer/lots/${lot.id}`}
+                          className="font-body text-[11px] text-turmeric hover:underline font-semibold"
+                        >
+                          {lang === 'en' ? 'View details →' : 'विवरण देखें →'}
+                        </Link>
+                      </div>
+
+                      <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                        {lot.lotOffers.map((offer) => (
+                          <div
+                            key={offer.id}
+                            className="p-2.5 rounded-xl bg-soil/5 border border-soil/10 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-body text-xs font-bold text-soil truncate">
+                                  {offer.buyerName}
+                                </span>
+                                {offer.buyerVerified && (
+                                  <ShieldCheck className="w-3.5 h-3.5 text-datateal flex-shrink-0" />
+                                )}
+                                <span
+                                  className={`font-mono text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                                    offer.status === 'Pending'
+                                      ? 'bg-turmeric/20 text-turmeric'
+                                      : offer.status === 'Accepted'
+                                      ? 'bg-datateal/20 text-datateal'
+                                      : offer.status === 'Rejected'
+                                      ? 'bg-red-100 text-red-700'
+                                      : 'bg-soil/10 text-soil/60'
+                                  }`}
+                                >
+                                  {offer.status}
+                                </span>
+                              </div>
+                              <p className="font-body text-[10px] text-soil/60 truncate">
+                                {offer.buyerCompany}
+                              </p>
+                            </div>
+
+                            <div className="flex items-center justify-between sm:justify-end gap-2 text-right">
+                              <div>
+                                <span className="font-mono text-xs font-bold text-soil block">
+                                  ₹{offer.offeredPrice.toLocaleString('en-IN')}/qtl
+                                </span>
+                                <span className="font-body text-[10px] text-soil/50">
+                                  {offer.quantityQtl} qtl &bull; ₹{offer.totalAmount.toLocaleString('en-IN')}
+                                </span>
+                              </div>
+
+                              {offer.status === 'Pending' && (
+                                <div className="flex items-center gap-1 ml-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => acceptOffer(offer.id)}
+                                    className="px-2 py-1 rounded-lg bg-datateal text-wheat font-body text-[10px] font-bold hover:bg-datateal/90 transition-colors cursor-pointer"
+                                    title="Accept Bid"
+                                  >
+                                    {lang === 'en' ? 'Accept' : 'स्वीकार'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => rejectOffer(offer.id)}
+                                    className="px-2 py-1 rounded-lg bg-soil/10 text-soil font-body text-[10px] font-bold hover:bg-soil/15 transition-colors cursor-pointer"
+                                    title="Reject Bid"
+                                  >
+                                    {lang === 'en' ? 'Reject' : 'अस्वीकार'}
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
