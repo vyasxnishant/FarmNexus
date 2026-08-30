@@ -24,6 +24,7 @@ import {
   type TransactionLifecycleStatus,
   type TransactionPaymentStatus
 } from '../../../context/DashboardContext'
+import { isEscrowPayable, isDealSettled } from '../../../utils/transactionUtils'
 import { DemoDataBadge } from '../components/DemoDataBadge'
 
 interface TransactionsViewProps {
@@ -297,13 +298,20 @@ export function TransactionsView({ isBuyer = false }: TransactionsViewProps) {
                       <ArrowRight className="w-3.5 h-3.5 text-turmeric" />
                     </Link>
 
-                    {isBuyerMode && txn.paymentStatus === 'Payment Pending' && (
+                    {isBuyerMode && isEscrowPayable(txn) && (
                       <Link
                         to={`${basePath}/${txn.id}?action=deposit`}
                         className="px-4 py-2 rounded-xl bg-turmeric text-monsoon font-body text-xs font-bold hover:bg-turmeric/90 transition-all shadow-sm"
                       >
                         Deposit to Escrow
                       </Link>
+                    )}
+
+                    {isDealSettled(txn) && (
+                      <span className="px-3 py-1.5 rounded-xl bg-datateal/20 text-soil font-body text-xs font-semibold border border-datateal/40 flex items-center gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-datateal" />
+                        <span>{isBuyerMode ? 'Deal Fully Settled' : 'Payout Settled'}</span>
+                      </span>
                     )}
                   </div>
                 </div>

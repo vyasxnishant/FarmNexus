@@ -26,6 +26,7 @@ import {
 import { useDashboard, type FarmTransaction, type TransactionLifecycleStatus, type TransactionPaymentStatus } from '../../../context/DashboardContext'
 import { paymentApi } from '../../../services/apiServices'
 import { useRazorpay } from '../../../hooks/useRazorpay'
+import { isEscrowPayable, isDealSettled, isEscrowFunded, isInTransit, getTransactionActionDeskInfo } from '../../../utils/transactionUtils'
 
 export function TransactionDetailsView() {
   const { transactionId } = useParams<{ transactionId: string }>()
@@ -40,7 +41,7 @@ export function TransactionDetailsView() {
 
   // Pay Modal State for Buyer
   const actionParam = searchParams.get('action')
-  const [isPayModalOpen, setIsPayModalOpen] = useState(actionParam === 'deposit')
+  const [isPayModalOpen, setIsPayModalOpen] = useState(false)
   const [selectedPayMethod, setSelectedPayMethod] = useState<'RAZORPAY_TEST' | 'UPI' | 'NetBanking' | 'Card'>('RAZORPAY_TEST')
   const [isProcessingPayment, setIsProcessingPayment] = useState(false)
   const [isVerifying, setIsVerifying] = useState(false)
@@ -52,10 +53,12 @@ export function TransactionDetailsView() {
   const [isActionLoading, setIsActionLoading] = useState(false)
 
   useEffect(() => {
-    if (actionParam === 'deposit' && txn?.paymentStatus === 'Payment Pending') {
+    if (actionParam === 'deposit' && txn && isEscrowPayable(txn) && isBuyerMode) {
       setIsPayModalOpen(true)
+    } else {
+      setIsPayModalOpen(false)
     }
-  }, [actionParam, txn?.paymentStatus])
+  }, [actionParam, txn?.paymentStatus, txn?.transactionStatus, isBuyerMode])
 
   if (!txn) {
     return (
@@ -446,107 +449,188 @@ export function TransactionDetailsView() {
 
         {/* Right Column (5 cols): Dynamic Action Desk */}
         <div className="lg:col-span-5 space-y-6">
-          <div className="sticky top-24 bg-monsoon text-wheat rounded-3xl p-6 border-2 border-turmeric/40 shadow-xl space-y-6">
-            <div className="flex items-center justify-between pb-4 border-b border-wheat/15">
-              <div className="flex items-center gap-2">
-                <Lock className="w-5 h-5 text-turmeric" />
-                <span className="font-mono text-xs font-bold text-turmeric uppercase tracking-wider">
-                  TRANSACTION ACTION DESK
-                </span>
-              </div>
-              <span className="font-mono text-xs text-wheat/60">{isBuyerMode ? 'Buyer Desk' : 'Farmer Desk'}</span>
-            </div>
+          {(() => {
+            const deskInfo = getTransactionActionDeskInfo(txn, isBuyerMode)
 
-            {/* Buyer Deposit Action */}
-            {isBuyerMode && txn.paymentStatus === 'Payment Pending' && (
-              <div className="space-y-4 p-4 rounded-2xl bg-wheat/10 border border-turmeric/30">
-                <div className="flex items-center gap-2">
-                  <DollarSign className="w-5 h-5 text-turmeric" />
-                  <h4 className="font-serif text-lg font-bold text-wheat">
-                    Deposit Capital into Escrow
-                  </h4>
+            return (
+              <div className="sticky top-24 bg-monsoon text-wheat rounded-3xl p-6 border-2 border-turmeric/40 shadow-xl space-y-6">
+                <div className="flex items-center justify-between pb-4 border-b border-wheat/15">
+                  <div className="flex items-center gap-2">
+                    <Lock className="w-5 h-5 text-turmeric" />
+                    <span className="font-mono text-xs font-bold text-turmeric uppercase tracking-wider">
+                      TRANSACTION ACTION DESK
+                    </span>
+                  </div>
+                  <span className="font-mono text-xs text-wheat/80 font-semibold">{deskInfo.deskLabel}</span>
                 </div>
-                <p className="text-xs font-body text-wheat/80 leading-relaxed">
-                  Lock ₹{txn.finalAmount.toLocaleString('en-IN')} into FarmNexus Escrow vault. Funds are only released upon verified quality gate arrival.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setIsPayModalOpen(true)}
-                  className="w-full py-3 bg-turmeric text-monsoon font-body text-xs font-bold rounded-xl hover:bg-turmeric/90 transition-all shadow-md cursor-pointer flex items-center justify-center gap-2"
-                >
-                  <Lock className="w-4 h-4" />
-                  <span>Deposit ₹{txn.finalAmount.toLocaleString('en-IN')} via Sandbox</span>
-                </button>
-              </div>
-            )}
 
-            {/* Farmer Dispatch Action */}
-            {!isBuyerMode && txn.paymentStatus === 'Payment Successful' && txn.transactionStatus === 'Payment Completed' && (
-              <div className="space-y-4 p-4 rounded-2xl bg-wheat/10 border border-datateal/40">
-                <div className="flex items-center gap-2">
-                  <Truck className="w-5 h-5 text-datateal" />
-                  <h4 className="font-serif text-lg font-bold text-wheat">
-                    Escrow Funded — Ready for Dispatch
-                  </h4>
+                {/* 1. Buyer Deposit Action (ONLY when genuinely payable) */}
+                {deskInfo.allowDeposit && (
+                  <div className="space-y-4 p-4 rounded-2xl bg-wheat/10 border border-turmeric/30">
+                    <div className="flex items-center gap-2">
+                      <DollarSign className="w-5 h-5 text-turmeric" />
+                      <h4 className="font-serif text-lg font-bold text-wheat">
+                        Deposit Capital into Escrow
+                      </h4>
+                    </div>
+                    <p className="text-xs font-body text-wheat/80 leading-relaxed">
+                      Lock ₹{txn.finalAmount.toLocaleString('en-IN')} into FarmNexus Escrow vault. Funds are only released upon verified quality gate arrival.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setIsPayModalOpen(true)}
+                      className="w-full py-3 bg-turmeric text-monsoon font-body text-xs font-bold rounded-xl hover:bg-turmeric/90 transition-all shadow-md cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      <Lock className="w-4 h-4" />
+                      <span>Deposit ₹{txn.finalAmount.toLocaleString('en-IN')} to Escrow</span>
+                    </button>
+                  </div>
+                )}
+
+                {/* 1b. Farmer Waiting for Buyer Deposit */}
+                {!isBuyerMode && deskInfo.isPayable && (
+                  <div className="space-y-4 p-4 rounded-2xl bg-wheat/10 border border-turmeric/30">
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-5 h-5 text-turmeric" />
+                      <h4 className="font-serif text-lg font-bold text-wheat">
+                        Awaiting Buyer Escrow Deposit
+                      </h4>
+                    </div>
+                    <p className="text-xs font-body text-wheat/80 leading-relaxed">
+                      Buyer ({txn.buyerName}) has initiated the trade contract. Once ₹{txn.finalAmount.toLocaleString('en-IN')} is locked in the FarmNexus Escrow vault, you will receive instructions to dispatch produce from your farm-gate.
+                    </p>
+                    <div className="p-2.5 bg-monsoon/60 rounded-xl border border-wheat/10 text-[11px] font-mono text-wheat/70 flex items-center gap-2">
+                      <Lock className="w-3.5 h-3.5 text-turmeric" />
+                      <span>Escrow Vault Status: Awaiting Buyer Deposit</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. Farmer Dispatch Action (Escrow Funded) */}
+                {deskInfo.allowDispatch && (
+                  <div className="space-y-4 p-4 rounded-2xl bg-wheat/10 border border-datateal/40">
+                    <div className="flex items-center gap-2">
+                      <Truck className="w-5 h-5 text-datateal" />
+                      <h4 className="font-serif text-lg font-bold text-wheat">
+                        Escrow Funded — Ready for Dispatch
+                      </h4>
+                    </div>
+                    <p className="text-xs font-body text-wheat/80 leading-relaxed">
+                      Buyer has deposited ₹{txn.finalAmount.toLocaleString('en-IN')} in escrow. Dispatch harvest from farm-gate to begin transit tracking.
+                    </p>
+                    <button
+                      type="button"
+                      disabled={isActionLoading}
+                      onClick={handleDispatchShipment}
+                      className="w-full py-3 bg-datateal text-monsoon font-body text-xs font-bold rounded-xl hover:bg-datateal/90 transition-all shadow-md cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      {isActionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Truck className="w-4 h-4" />}
+                      <span>Confirm Dispatch & Handover</span>
+                    </button>
+                  </div>
+                )}
+
+                {/* 2b. Buyer Escrow Locked Status */}
+                {isBuyerMode && deskInfo.isEscrowLocked && (
+                  <div className="space-y-4 p-4 rounded-2xl bg-wheat/10 border border-datateal/40">
+                    <div className="flex items-center gap-2">
+                      <Lock className="w-5 h-5 text-datateal" />
+                      <h4 className="font-serif text-lg font-bold text-wheat">
+                        Escrow Capital Locked
+                      </h4>
+                    </div>
+                    <p className="text-xs font-body text-wheat/80 leading-relaxed">
+                      ₹{txn.finalAmount.toLocaleString('en-IN')} is securely held in FarmNexus Escrow Vault. Farmer ({txn.farmerName}) has been notified to dispatch the produce consignment from farm-gate.
+                    </p>
+                    <div className="p-2.5 bg-monsoon/60 rounded-xl border border-wheat/10 text-[11px] font-mono text-wheat/70 flex items-center gap-2">
+                      <Truck className="w-3.5 h-3.5 text-datateal" />
+                      <span>Status: Awaiting Farmer Dispatch</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* 3. Buyer Delivery Confirmation Action */}
+                {deskInfo.allowGateVerification && (
+                  <div className="space-y-4 p-4 rounded-2xl bg-wheat/10 border border-datateal/40">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-5 h-5 text-datateal" />
+                      <h4 className="font-serif text-lg font-bold text-wheat">
+                        Verify Gate Arrival & Release Payout
+                      </h4>
+                    </div>
+                    <p className="text-xs font-body text-wheat/80 leading-relaxed">
+                      Produce has arrived at terminal. Confirming gate assay will release ₹{txn.produceValue.toLocaleString('en-IN')} to farmer linked SBI account.
+                    </p>
+                    <button
+                      type="button"
+                      disabled={isActionLoading}
+                      onClick={handleConfirmDelivery}
+                      className="w-full py-3 bg-datateal text-monsoon font-body text-xs font-bold rounded-xl hover:bg-datateal/90 transition-all shadow-md cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      {isActionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                      <span>Verify Gate Receipt & Release Funds</span>
+                    </button>
+                  </div>
+                )}
+
+                {/* 3b. Farmer Produce In Transit Status */}
+                {!isBuyerMode && deskInfo.isInTransit && (
+                  <div className="space-y-4 p-4 rounded-2xl bg-wheat/10 border border-turmeric/30">
+                    <div className="flex items-center gap-2">
+                      <Truck className="w-5 h-5 text-turmeric" />
+                      <h4 className="font-serif text-lg font-bold text-wheat">
+                        Produce In Transit
+                      </h4>
+                    </div>
+                    <p className="text-xs font-body text-wheat/80 leading-relaxed">
+                      Consignment is en route to delivery terminal ({txn.mandiOrDeliveryLocation || txn.buyerLocation}). Net payout of ₹{txn.produceValue.toLocaleString('en-IN')} will automatically be released upon terminal arrival verification.
+                    </p>
+                    <div className="p-2.5 bg-monsoon/60 rounded-xl border border-wheat/10 text-[11px] font-mono text-wheat/70 flex items-center gap-2">
+                      <Clock className="w-3.5 h-3.5 text-turmeric" />
+                      <span>Status: En Route to Destination</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* 4. Final Settled / Completed Notice (Read-Only) */}
+                {deskInfo.isSettled && (
+                  isBuyerMode ? (
+                    <div className="p-5 rounded-2xl bg-datateal/20 border border-datateal/40 space-y-3 text-center">
+                      <CheckCircle2 className="w-12 h-12 text-datateal mx-auto" />
+                      <h4 className="font-serif text-xl font-bold text-wheat">Deal Fully Settled</h4>
+                      <p className="text-xs font-body text-wheat/80 leading-relaxed">
+                        Produce successfully received and verified at terminal. Payout of ₹{txn.produceValue.toLocaleString('en-IN')} settled to farmer and escrow contract reconciled.
+                      </p>
+                      <div className="p-2.5 bg-monsoon/60 rounded-xl border border-wheat/10 text-[11px] font-mono text-datateal font-bold flex items-center justify-center gap-2">
+                        <ShieldCheck className="w-4 h-4 text-datateal" />
+                        <span>Payment Completed & Settled</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-5 rounded-2xl bg-datateal/20 border border-datateal/40 space-y-3 text-center">
+                      <CheckCircle2 className="w-12 h-12 text-datateal mx-auto" />
+                      <h4 className="font-serif text-xl font-bold text-wheat">Payout Settled & Transferred</h4>
+                      <p className="text-xs font-body text-wheat/80 leading-relaxed">
+                        Produce delivery verified. Net payout of ₹{txn.produceValue.toLocaleString('en-IN')} has been credited directly to your registered bank account.
+                      </p>
+                      <div className="p-2.5 bg-monsoon/60 rounded-xl border border-wheat/10 text-[11px] font-mono text-datateal font-bold flex items-center justify-center gap-2">
+                        <ShieldCheck className="w-4 h-4 text-datateal" />
+                        <span>Bank Payout Disbursed & Settled</span>
+                      </div>
+                    </div>
+                  )
+                )}
+
+                {/* Security Guarantee Box */}
+                <div className="p-4 rounded-2xl bg-wheat/5 border border-wheat/10 space-y-2 text-xs font-body text-wheat/70">
+                  <span className="font-bold text-wheat block">FarmNexus Escrow Guarantee:</span>
+                  <p>&bull; Client-side security: Zero private credentials stored on client.</p>
+                  <p>&bull; Dual verification: Digital gate receipt triggers automated UPI settlement.</p>
+                  <p>&bull; Dispute resolution: 24/7 dedicated APMC liaison support.</p>
                 </div>
-                <p className="text-xs font-body text-wheat/80 leading-relaxed">
-                  Buyer has deposited ₹{txn.finalAmount.toLocaleString('en-IN')} in escrow. Dispatch harvest from farm-gate to begin transit tracking.
-                </p>
-                <button
-                  type="button"
-                  disabled={isActionLoading}
-                  onClick={handleDispatchShipment}
-                  className="w-full py-3 bg-datateal text-monsoon font-body text-xs font-bold rounded-xl hover:bg-datateal/90 transition-all shadow-md cursor-pointer flex items-center justify-center gap-2"
-                >
-                  {isActionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Truck className="w-4 h-4" />}
-                  <span>Confirm Dispatch & Handover</span>
-                </button>
               </div>
-            )}
-
-            {/* Buyer Delivery Confirmation Action */}
-            {isBuyerMode && txn.transactionStatus === 'In Transit' && (
-              <div className="space-y-4 p-4 rounded-2xl bg-wheat/10 border border-datateal/40">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-5 h-5 text-datateal" />
-                  <h4 className="font-serif text-lg font-bold text-wheat">
-                    Verify Gate Arrival & Release Payout
-                  </h4>
-                </div>
-                <p className="text-xs font-body text-wheat/80 leading-relaxed">
-                  Produce has arrived at terminal. Confirming gate assay will release ₹{txn.produceValue.toLocaleString('en-IN')} to farmer linked SBI account.
-                </p>
-                <button
-                  type="button"
-                  disabled={isActionLoading}
-                  onClick={handleConfirmDelivery}
-                  className="w-full py-3 bg-datateal text-monsoon font-body text-xs font-bold rounded-xl hover:bg-datateal/90 transition-all shadow-md cursor-pointer flex items-center justify-center gap-2"
-                >
-                  {isActionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                  <span>Verify Gate Receipt & Release Funds</span>
-                </button>
-              </div>
-            )}
-
-            {/* Completed Notice */}
-            {txn.transactionStatus === 'Completed' && (
-              <div className="p-4 rounded-2xl bg-datateal/20 border border-datateal/40 space-y-2 text-center">
-                <CheckCircle2 className="w-10 h-10 text-datateal mx-auto" />
-                <h4 className="font-serif text-lg font-bold text-wheat">Deal Fully Settled</h4>
-                <p className="text-xs font-body text-wheat/80">
-                  Produce successfully delivered and payout of ₹{txn.produceValue.toLocaleString('en-IN')} settled to farmer bank account.
-                </p>
-              </div>
-            )}
-
-            {/* Security Guarantee Box */}
-            <div className="p-4 rounded-2xl bg-wheat/5 border border-wheat/10 space-y-2 text-xs font-body text-wheat/70">
-              <span className="font-bold text-wheat block">FarmNexus Escrow Guarantee:</span>
-              <p>&bull; Client-side security: Zero private credentials stored on client.</p>
-              <p>&bull; Dual verification: Digital gate receipt triggers automated UPI settlement.</p>
-              <p>&bull; Dispute resolution: 24/7 dedicated APMC liaison support.</p>
-            </div>
-          </div>
+            )
+          })()}
         </div>
       </div>
 

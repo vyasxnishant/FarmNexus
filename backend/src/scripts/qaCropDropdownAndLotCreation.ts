@@ -1,5 +1,4 @@
 import axios from 'axios'
-import { allIndianCrops, indianCropCategories } from '../../../frontend/src/data/indianCrops'
 
 const API_BASE = 'http://localhost:5000/api'
 
@@ -24,6 +23,11 @@ async function runCropDropdownQA() {
   console.log('==================================================================\n')
 
   try {
+    // Dynamically import indianCrops
+    const { allIndianCrops, indianCropCategories } = await import('../../../frontend/src/data/indianCrops.js').catch(async () => {
+      return await import('../../../frontend/src/data/indianCrops.ts' as any)
+    })
+
     // 1. Verify Dataset Size and Categories
     const categoriesCount = indianCropCategories.length
     const totalCropsCount = allIndianCrops.length
@@ -54,7 +58,7 @@ async function runCropDropdownQA() {
       'Other'
     ]
 
-    const missingCrops = requiredCrops.filter(req => !allIndianCrops.some(c => c.name.toLowerCase() === req.toLowerCase()))
+    const missingCrops = requiredCrops.filter((req: string) => !allIndianCrops.some((c: any) => c.name.toLowerCase() === req.toLowerCase()))
     record(
       'Mandatory Crops Checklist',
       'All mandatory crops from user specification are present',
@@ -63,8 +67,8 @@ async function runCropDropdownQA() {
     )
 
     // 3. Verify No Duplicates
-    const cropNames = allIndianCrops.map(c => c.name.toLowerCase())
-    const duplicates = cropNames.filter((name, idx) => cropNames.indexOf(name) !== idx)
+    const cropNames = allIndianCrops.map((c: any) => c.name.toLowerCase())
+    const duplicates = cropNames.filter((name: string, idx: number) => cropNames.indexOf(name) !== idx)
     record(
       'Duplicate Check',
       'No duplicate crop names exist in the catalog',
@@ -73,7 +77,7 @@ async function runCropDropdownQA() {
     )
 
     // 4. Verify Bilingual Hindi Names for All Crops
-    const missingHindi = allIndianCrops.filter(c => !c.nameHi || c.nameHi.trim() === '')
+    const missingHindi = allIndianCrops.filter((c: any) => !c.nameHi || c.nameHi.trim() === '')
     record(
       'Bilingual Support',
       'All crops have complete Hindi translations and search keywords',
@@ -82,8 +86,8 @@ async function runCropDropdownQA() {
     )
 
     // 5. Test Search Filtering in English and Hindi
-    const searchMustardEn = allIndianCrops.filter(c => c.name.toLowerCase().includes('mustard'))
-    const searchMustardHi = allIndianCrops.filter(c => c.nameHi.includes('सरसों') || c.searchTerms?.some(t => t.includes('सरसों')))
+    const searchMustardEn = allIndianCrops.filter((c: any) => c.name.toLowerCase().includes('mustard'))
+    const searchMustardHi = allIndianCrops.filter((c: any) => c.nameHi.includes('सरसों') || c.searchTerms?.some((t: string) => t.includes('सरसों')))
     record(
       'Search Functionality',
       'Search filters correctly with both English and Hindi inputs',

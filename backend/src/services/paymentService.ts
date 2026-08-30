@@ -34,8 +34,18 @@ export class PaymentService {
       throw new Error('Unauthorized: Only the assigned Buyer can initiate escrow payment for this transaction.')
     }
 
-    if (txn.payment_status === 'Payment Successful') {
-      throw new Error('Payment already completed and escrow funded for this transaction.')
+    const pStatus = (txn.payment_status as string) || ''
+    const tStatus = (txn.transaction_status as string) || ''
+    if (
+      pStatus === 'Payment Successful' ||
+      pStatus === 'Settled' ||
+      pStatus === 'Disbursed' ||
+      tStatus === 'Completed' ||
+      tStatus === 'Payment Completed' ||
+      tStatus === 'In Transit' ||
+      tStatus === 'Delivered'
+    ) {
+      throw new Error('Payment already completed and escrow funded or deal settled for this transaction.')
     }
 
     // SERVER-CALCULATED AMOUNT ONLY

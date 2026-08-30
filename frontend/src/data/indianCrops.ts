@@ -135,3 +135,4 @@ export function findIndianCrop(cropName: string): IndianCrop | undefined {
     c => c.name.toLowerCase() === lower || c.nameHi.toLowerCase() === lower || c.name.toLowerCase().includes(lower)
   )
 }
+

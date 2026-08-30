@@ -17,9 +17,10 @@ import {
   DollarSign
 } from 'lucide-react'
 import { useDashboard } from '../../../context/DashboardContext'
+import { isEscrowPayable, isDealSettled } from '../../../utils/transactionUtils'
 
 export function BuyerOffersView() {
-  const { offers, cancelBuyerOffer, buyerProfile, currentUser, lang } = useDashboard()
+  const { offers, transactions, cancelBuyerOffer, buyerProfile, currentUser, lang } = useDashboard()
   const [filterStatus, setFilterStatus] = useState<string>('All')
 
   const filterTabs = ['All', 'Pending', 'Accepted', 'Countered', 'Rejected']
@@ -272,14 +273,40 @@ export function BuyerOffersView() {
                       </button>
                     )}
 
-                    {isAccepted && (
-                      <Link
-                        to="/buyer/transactions"
-                        className="px-3.5 py-1.5 rounded-xl bg-turmeric text-monsoon font-body text-xs font-bold hover:bg-turmeric/90 transition-all shadow-xs"
-                      >
-                        Deposit to Escrow
-                      </Link>
-                    )}
+                    {isAccepted && (() => {
+                      const matchingTxn = transactions.find(t => t.lotId === offer.lotId || t.offerId === offer.id)
+                      const isPayable = matchingTxn ? isEscrowPayable(matchingTxn) : true
+                      const isSettled = matchingTxn ? isDealSettled(matchingTxn) : false
+
+                      if (isPayable) {
+                        return (
+                          <Link
+                            to={`/buyer/transactions/${matchingTxn?.id || ''}?action=deposit`}
+                            className="px-3.5 py-1.5 rounded-xl bg-turmeric text-monsoon font-body text-xs font-bold hover:bg-turmeric/90 transition-all shadow-xs"
+                          >
+                            Deposit to Escrow
+                          </Link>
+                        )
+                      }
+
+                      if (isSettled) {
+                        return (
+                          <span className="px-3 py-1.5 rounded-xl bg-datateal/20 text-soil font-body text-xs font-semibold border border-datateal/40 flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-datateal" />
+                            <span>Deal Fully Settled</span>
+                          </span>
+                        )
+                      }
+
+                      return (
+                        <Link
+                          to={`/buyer/transactions/${matchingTxn?.id || ''}`}
+                          className="px-3.5 py-1.5 rounded-xl bg-monsoon text-wheat font-body text-xs font-semibold hover:bg-monsoon/90 transition-all shadow-xs"
+                        >
+                          View Deal & Escrow
+                        </Link>
+                      )
+                    })()}
                   </div>
                 </div>
               </div>
