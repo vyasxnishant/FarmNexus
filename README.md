@@ -221,3 +221,4 @@ npx tsx backend/src/scripts/qaSecurityPass.ts
 
 ## 📄 License
 FarmNexus Platform Core Engine. Built with pride for Indian agriculture.
+

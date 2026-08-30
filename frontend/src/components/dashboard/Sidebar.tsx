@@ -1,4 +1,4 @@
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard,
   TrendingUp,
@@ -10,18 +10,17 @@ import {
   User,
   Plus,
   ArrowLeft,
-  ShieldCheck,
-  Scale,
   Building2,
   Search,
   Receipt,
-  ArrowRightLeft,
   Truck,
   Package,
   Activity,
   DollarSign,
   UserCheck,
-  Lock
+  LogOut,
+  ShieldCheck,
+  Scale
 } from 'lucide-react'
 import { useDashboard } from '../../context/DashboardContext'
 
@@ -35,11 +34,16 @@ interface NavItem {
 
 export function Sidebar() {
   const location = useLocation()
-  const { profile, buyerProfile, notifications, setIsListModalOpen, lang, userRole, setUserRole } = useDashboard()
+  const navigate = useNavigate()
+  const { currentUser, logout, notifications, setIsListModalOpen, lang } = useDashboard()
 
-  const isBuyerRoute = location.pathname.startsWith('/buyer')
-  const isAdminRoute = location.pathname.startsWith('/admin')
+  const userType = currentUser?.user_type || 'FARMER'
   const unreadCount = notifications.filter(n => !n.read).length
+
+  const handleLogout = () => {
+    logout()
+    navigate('/login', { replace: true })
+  }
 
   const farmerNavItems: NavItem[] = [
     {
@@ -95,7 +99,7 @@ export function Sidebar() {
       badge: unreadCount > 0 ? unreadCount : undefined,
     },
     {
-      name: lang === 'en' ? 'Farmer Profile' : 'किसान प्रोफ़ाइल',
+      name: lang === 'en' ? 'Personal Profile' : 'मेरी प्रोफ़ाइल',
       path: '/farmer/profile',
       icon: User,
     },
@@ -142,6 +146,11 @@ export function Sidebar() {
       name: lang === 'en' ? 'Mandi Comparison' : 'मंडी भाव तुलना',
       path: '/farmer/market-prices',
       icon: TrendingUp,
+    },
+    {
+      name: lang === 'en' ? 'Buyer Profile' : 'खरीदार प्रोफ़ाइल',
+      path: '/buyer/profile',
+      icon: User,
     },
   ]
 
@@ -199,7 +208,14 @@ export function Sidebar() {
     },
   ]
 
-  const navItems = isAdminRoute ? adminNavItems : isBuyerRoute ? buyerNavItems : farmerNavItems
+  const navItems = userType === 'ADMIN' ? adminNavItems : userType === 'BUYER' ? buyerNavItems : farmerNavItems
+
+  const getInitials = (name?: string) => {
+    if (!name) return 'FN'
+    const parts = name.trim().split(' ')
+    if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
+    return name.slice(0, 2).toUpperCase()
+  }
 
   return (
     <aside className="w-64 bg-monsoon border-r border-wheat/10 flex flex-col justify-between h-screen sticky top-0 z-30 select-none">
@@ -217,46 +233,15 @@ export function Sidebar() {
                 FarmNexus
               </span>
               <span className="font-mono text-[9px] uppercase font-semibold text-turmeric/80 tracking-wider">
-                {isAdminRoute ? 'Admin Control Portal' : isBuyerRoute ? 'Buyer Sourcing Desk' : 'Farmer Produce Hub'}
+                {userType === 'ADMIN' ? 'Admin Desk' : userType === 'BUYER' ? 'Buyer Portal' : 'Farmer Produce Hub'}
               </span>
             </div>
           </Link>
         </div>
 
-        {/* Portal Switcher & Action */}
-        <div className="px-4 py-3 space-y-2">
-          {/* Quick Role Switcher Bar */}
-          <div className="grid grid-cols-3 gap-1 p-1 bg-wheat/5 border border-wheat/10 rounded-xl">
-            <Link
-              to="/farmer"
-              onClick={() => setUserRole('farmer')}
-              className={`py-1 text-[10px] font-mono font-bold rounded-lg text-center transition-all ${
-                !isBuyerRoute && !isAdminRoute ? 'bg-turmeric text-monsoon shadow-xs' : 'text-wheat/60 hover:text-wheat'
-              }`}
-            >
-              Farmer
-            </Link>
-            <Link
-              to="/buyer/dashboard"
-              onClick={() => setUserRole('buyer')}
-              className={`py-1 text-[10px] font-mono font-bold rounded-lg text-center transition-all ${
-                isBuyerRoute ? 'bg-turmeric text-monsoon shadow-xs' : 'text-wheat/60 hover:text-wheat'
-              }`}
-            >
-              Buyer
-            </Link>
-            <Link
-              to="/admin/dashboard"
-              onClick={() => setUserRole('admin')}
-              className={`py-1 text-[10px] font-mono font-bold rounded-lg text-center transition-all ${
-                isAdminRoute ? 'bg-turmeric text-monsoon shadow-xs' : 'text-wheat/60 hover:text-wheat'
-              }`}
-            >
-              Admin
-            </Link>
-          </div>
-
-          {!isBuyerRoute && !isAdminRoute && (
+        {/* Action Button for Farmer */}
+        {userType === 'FARMER' && (
+          <div className="px-4 py-3">
             <button
               onClick={() => setIsListModalOpen(true)}
               className="w-full py-2.5 px-4 bg-turmeric text-monsoon font-body font-bold text-xs rounded-xl hover:bg-turmeric/90 transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer"
@@ -264,11 +249,11 @@ export function Sidebar() {
               <Plus className="w-4 h-4" />
               <span>{lang === 'en' ? 'List New Produce Lot' : 'नया लॉट बनाएं'}</span>
             </button>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Navigation Menu */}
-        <nav className="px-3 py-2 space-y-1 overflow-y-auto max-h-[calc(100vh-290px)]">
+        <nav className="px-3 py-2 space-y-1 overflow-y-auto max-h-[calc(100vh-250px)]">
           {navItems.map((item) => {
             const isActive = item.exact
               ? location.pathname === item.path
@@ -302,50 +287,40 @@ export function Sidebar() {
         </nav>
       </div>
 
-      {/* Bottom Profile / Role Switch Link */}
+      {/* Bottom User Info & Logout Button */}
       <div className="p-4 border-t border-wheat/10 space-y-3 bg-monsoon">
+        <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-wheat/5 border border-wheat/10">
+          <div className="flex items-center gap-2.5 overflow-hidden">
+            <div className="w-8 h-8 rounded-lg bg-turmeric text-monsoon flex items-center justify-center font-serif text-xs font-bold shrink-0">
+              {getInitials(currentUser?.name)}
+            </div>
+            <div className="overflow-hidden">
+              <p className="font-body text-xs font-semibold text-wheat truncate">
+                {currentUser?.name || 'Authorized User'}
+              </p>
+              <p className="font-mono text-[10px] text-turmeric/80 truncate">
+                {currentUser?.user_type} {currentUser?.kyc_verified && '• KYC Verified'}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="p-1.5 rounded-lg text-wheat/60 hover:text-red-400 hover:bg-red-500/10 transition-colors shrink-0 cursor-pointer"
+            title="Sign Out"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
+        </div>
+
         <Link
           to="/"
-          className="flex items-center gap-2 text-xs font-body text-wheat/60 hover:text-wheat transition-colors px-2 py-1"
+          className="flex items-center justify-center gap-2 text-[11px] font-body text-wheat/50 hover:text-wheat transition-colors py-1"
         >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          <span>{lang === 'en' ? 'Back to Landing Page' : 'मुख्य पृष्ठ पर लौटें'}</span>
+          <ArrowLeft className="w-3 h-3" />
+          <span>{lang === 'en' ? 'Back to Landing Page' : 'मुख्य पृष्ठ'}</span>
         </Link>
-
-        {isAdminRoute ? (
-          <div className="flex items-center gap-3 p-2.5 rounded-xl bg-wheat/5 border border-wheat/10">
-            <div className="w-8 h-8 rounded-lg bg-turmeric text-monsoon flex items-center justify-center font-serif text-sm font-bold flex-shrink-0">
-              AD
-            </div>
-            <div className="overflow-hidden">
-              <p className="font-body text-xs font-semibold text-wheat truncate">Admin Operations</p>
-              <p className="font-body text-[10px] text-wheat/50 truncate">Bhopal State HQ</p>
-            </div>
-          </div>
-        ) : isBuyerRoute ? (
-          <div className="flex items-center gap-3 p-2.5 rounded-xl bg-wheat/5 border border-wheat/10">
-            <div className="w-8 h-8 rounded-lg bg-turmeric text-monsoon flex items-center justify-center font-serif text-sm font-bold flex-shrink-0">
-              AC
-            </div>
-            <div className="overflow-hidden">
-              <p className="font-body text-xs font-semibold text-wheat truncate">{buyerProfile.company}</p>
-              <p className="font-body text-[10px] text-wheat/50 truncate">{buyerProfile.name}</p>
-            </div>
-          </div>
-        ) : (
-          <Link
-            to="/farmer/profile"
-            className="flex items-center gap-3 p-2.5 rounded-xl bg-wheat/5 hover:bg-wheat/10 transition-colors border border-wheat/10"
-          >
-            <div className="w-8 h-8 rounded-lg bg-turmeric text-monsoon flex items-center justify-center font-serif text-sm font-bold flex-shrink-0">
-              RP
-            </div>
-            <div className="overflow-hidden">
-              <p className="font-body text-xs font-semibold text-wheat truncate">{profile.name}</p>
-              <p className="font-body text-[10px] text-wheat/50 truncate">{profile.village}</p>
-            </div>
-          </Link>
-        )}
       </div>
     </aside>
   )

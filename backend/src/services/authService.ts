@@ -167,5 +167,43 @@ export class AuthService {
     const { password_hash, ...safeUser } = user
     return { user: safeUser, profile }
   }
+
+  static async updateProfile(userId: string, data: any) {
+    const user = inMemoryDb.users.find(u => u.id === userId)
+    if (!user) {
+      throw new Error('User not found.')
+    }
+
+    if (data.name) user.name = data.name
+    if (data.phone) user.phone = data.phone
+    if (data.location) user.location = data.location
+    if (data.district) user.district = data.district
+    if (data.state) user.state = data.state
+    if (data.organization) user.organization = data.organization
+    user.updated_at = new Date().toISOString()
+
+    let profile = null
+    if (user.user_type === 'FARMER') {
+      profile = inMemoryDb.farmerProfiles.find(p => p.user_id === user.id)
+      if (profile) {
+        if (data.fpo_name) profile.fpo_name = data.fpo_name
+        if (data.total_land_acres !== undefined) profile.total_land_acres = Number(data.total_land_acres)
+        if (data.village) profile.village = data.village
+        if (data.upi_id) profile.upi_id = data.upi_id
+        profile.updated_at = new Date().toISOString()
+      }
+    } else if (user.user_type === 'BUYER') {
+      profile = inMemoryDb.buyerProfiles.find(p => p.user_id === user.id)
+      if (profile) {
+        if (data.company_name) profile.company_name = data.company_name
+        if (data.gst_number) profile.gst_number = data.gst_number
+        if (data.delivery_location) profile.delivery_location = data.delivery_location
+        profile.updated_at = new Date().toISOString()
+      }
+    }
+
+    const { password_hash, ...safeUser } = user
+    return { user: safeUser, profile }
+  }
 }
 

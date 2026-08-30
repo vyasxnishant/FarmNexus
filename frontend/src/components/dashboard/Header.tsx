@@ -1,4 +1,4 @@
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   Bell,
   Search,
@@ -6,10 +6,10 @@ import {
   MapPin,
   Menu,
   X,
-  Languages,
-  ShieldCheck,
   Building2,
-  ArrowRightLeft
+  LogOut,
+  ShieldCheck,
+  User
 } from 'lucide-react'
 import { useDashboard } from '../../context/DashboardContext'
 import { LanguageToggle } from '../ui/LanguageToggle'
@@ -23,10 +23,24 @@ export function Header({
   isMobileMenuOpen: boolean
 }) {
   const location = useLocation()
-  const { profile, buyerProfile, notifications, setIsListModalOpen, lang, toggleLang } = useDashboard()
+  const navigate = useNavigate()
+  const { currentUser, logout, notifications, setIsListModalOpen, lang, toggleLang } = useDashboard()
   
-  const isBuyer = location.pathname.startsWith('/buyer')
+  const userType = currentUser?.user_type || 'FARMER'
+  const isBuyer = userType === 'BUYER'
   const unreadCount = notifications.filter(n => !n.read).length
+
+  const handleLogout = () => {
+    logout()
+    navigate('/login', { replace: true })
+  }
+
+  const getInitials = (name?: string) => {
+    if (!name) return 'FN'
+    const parts = name.trim().split(' ')
+    if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
+    return name.slice(0, 2).toUpperCase()
+  }
 
   return (
     <header className="sticky top-0 z-20 bg-monsoon border-b border-wheat/10 px-4 md:px-8 py-3.5 flex items-center justify-between gap-4">
@@ -51,29 +65,28 @@ export function Header({
           <span className="font-serif text-lg font-bold text-wheat">FarmNexus</span>
         </Link>
 
-        {/* Hub / Location Pin */}
+        {/* User Location Badge */}
         <div className="hidden sm:flex items-center gap-1.5 font-body text-xs text-wheat/80 bg-wheat/5 border border-wheat/10 px-3 py-1.5 rounded-full">
           {isBuyer ? (
             <>
               <Building2 className="w-3.5 h-3.5 text-turmeric" />
-              <span>{buyerProfile.deliveryLocation}</span>
+              <span>{currentUser?.location || 'Central Procurement Hub'}</span>
             </>
           ) : (
             <>
               <MapPin className="w-3.5 h-3.5 text-turmeric" />
-              <span>{profile.district} APMC Hub (MP)</span>
+              <span>{currentUser?.district || currentUser?.location || 'Mandi Hub (MP)'}</span>
             </>
           )}
         </div>
 
-        {/* Quick Role Switcher Pill */}
-        <Link
-          to={isBuyer ? '/farmer' : '/buyer/dashboard'}
-          className="hidden md:flex items-center gap-1.5 px-3 py-1 rounded-full bg-turmeric/15 text-turmeric border border-turmeric/30 hover:bg-turmeric/25 text-xs font-mono font-semibold transition-colors"
-        >
-          <ArrowRightLeft className="w-3 h-3" />
-          <span>Switch to {isBuyer ? 'Farmer Portal' : 'Buyer Hub'}</span>
-        </Link>
+        {/* Verified KYC Tag */}
+        {currentUser?.kyc_verified && (
+          <div className="hidden md:flex items-center gap-1 px-2.5 py-1 rounded-full bg-datateal/15 text-datateal border border-datateal/30 text-[11px] font-body font-semibold">
+            <ShieldCheck className="w-3.5 h-3.5" />
+            <span>KYC Verified</span>
+          </div>
+        )}
       </div>
 
       {/* Right: Actions */}
@@ -83,7 +96,7 @@ export function Header({
 
         {/* Notification Bell */}
         <Link
-          to="/farmer/notifications"
+          to={userType === 'FARMER' ? '/farmer/notifications' : userType === 'BUYER' ? '/buyer/notifications' : '/admin/notifications'}
           className="relative p-2 rounded-xl text-wheat/70 hover:text-wheat hover:bg-wheat/10 transition-colors"
           title="Notifications"
         >
@@ -96,7 +109,7 @@ export function Header({
         </Link>
 
         {/* Quick Action */}
-        {isBuyer ? (
+        {userType === 'BUYER' ? (
           <Link
             to="/buyer/lots"
             className="hidden md:flex items-center gap-1.5 text-xs py-2 px-4 rounded-lg bg-turmeric text-monsoon font-body font-bold hover:bg-turmeric/90 transition-all shadow-sm"
@@ -104,7 +117,7 @@ export function Header({
             <Search className="w-3.5 h-3.5" />
             <span>Browse Lots</span>
           </Link>
-        ) : (
+        ) : userType === 'FARMER' ? (
           <Button
             variant="fill"
             size="md"
@@ -114,34 +127,31 @@ export function Header({
             <Plus className="w-4 h-4" />
             <span>{lang === 'en' ? 'List Produce' : 'उपज जोड़ें'}</span>
           </Button>
-        )}
+        ) : null}
 
-        {/* Profile Chip */}
-        {isBuyer ? (
+        {/* Profile Chip & Sign Out */}
+        <div className="flex items-center gap-2 pl-2 border-l border-wheat/10">
           <Link
-            to="/buyer/dashboard"
-            className="flex items-center gap-2 pl-2 border-l border-wheat/10"
+            to={userType === 'FARMER' ? '/farmer/profile' : userType === 'BUYER' ? '/buyer/profile' : '/admin/profile'}
+            className="flex items-center gap-2 hover:opacity-80 transition-opacity"
           >
             <div className="w-8 h-8 rounded-lg bg-turmeric text-monsoon flex items-center justify-center font-serif text-xs font-bold">
-              AC
+              {getInitials(currentUser?.name)}
             </div>
-            <span className="hidden lg:block font-body text-xs font-semibold text-wheat truncate max-w-[120px]">
-              {buyerProfile.company.split(' ')[0]}
+            <span className="hidden lg:block font-body text-xs font-semibold text-wheat truncate max-w-[130px]">
+              {currentUser?.name || 'User Profile'}
             </span>
           </Link>
-        ) : (
-          <Link
-            to="/farmer/profile"
-            className="flex items-center gap-2 pl-2 border-l border-wheat/10"
+
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="p-1.5 rounded-lg text-wheat/60 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+            title="Sign Out"
           >
-            <div className="w-8 h-8 rounded-lg bg-turmeric text-monsoon flex items-center justify-center font-serif text-xs font-bold">
-              RP
-            </div>
-            <span className="hidden lg:block font-body text-xs font-semibold text-wheat">
-              {profile.name}
-            </span>
-          </Link>
-        )}
+            <LogOut className="w-4 h-4" />
+          </button>
+        </div>
       </div>
     </header>
   )

@@ -2,6 +2,11 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { LandingPage } from './components/LandingPage'
 import { DashboardProvider } from './context/DashboardContext'
 import { DashboardLayout } from './components/dashboard/DashboardLayout'
+import { LoginView } from './components/auth/LoginView'
+import { RegisterView } from './components/auth/RegisterView'
+import { ProtectedRoute } from './components/auth/ProtectedRoute'
+
+// Farmer Views
 import { OverviewView } from './components/dashboard/views/OverviewView'
 import { MarketIntelligenceView } from './components/dashboard/views/MarketIntelligenceView'
 import { MarketPricesComparisonView } from './components/dashboard/views/MarketPricesComparisonView'
@@ -24,7 +29,6 @@ import { BuyerLotDetailsView } from './components/dashboard/views/BuyerLotDetail
 import { BuyerOffersView } from './components/dashboard/views/BuyerOffersView'
 
 // Admin Views
-import { RoleGuard } from './components/dashboard/admin/RoleGuard'
 import { AdminDashboardView } from './components/dashboard/admin/AdminDashboardView'
 import { AdminUsersView } from './components/dashboard/admin/AdminUsersView'
 import { AdminFarmersView } from './components/dashboard/admin/AdminFarmersView'
@@ -41,11 +45,32 @@ export default function App() {
     <BrowserRouter>
       <DashboardProvider>
         <Routes>
-          {/* Public Landing Page */}
+          {/* Public Routes */}
           <Route path="/" element={<LandingPage />} />
+          <Route path="/login" element={<LoginView />} />
+          <Route path="/register" element={<RegisterView />} />
 
-          {/* Authenticated Farmer Dashboard */}
-          <Route path="/farmer" element={<DashboardLayout />}>
+          {/* Authenticated Global Profile Route */}
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <DashboardLayout />
+              </ProtectedRoute>
+            }
+          >
+            <Route index element={<ProfileView />} />
+          </Route>
+
+          {/* Authenticated Farmer Portal (Role Restricted: FARMER, ADMIN) */}
+          <Route
+            path="/farmer"
+            element={
+              <ProtectedRoute allowedRoles={['FARMER', 'ADMIN']}>
+                <DashboardLayout />
+              </ProtectedRoute>
+            }
+          >
             <Route index element={<OverviewView />} />
             <Route path="market-intelligence" element={<MarketIntelligenceView />} />
             <Route path="market-prices" element={<MarketPricesComparisonView />} />
@@ -64,8 +89,15 @@ export default function App() {
             <Route path="profile" element={<ProfileView />} />
           </Route>
 
-          {/* Authenticated Buyer Portal */}
-          <Route path="/buyer" element={<DashboardLayout />}>
+          {/* Authenticated Buyer Portal (Role Restricted: BUYER, ADMIN) */}
+          <Route
+            path="/buyer"
+            element={
+              <ProtectedRoute allowedRoles={['BUYER', 'ADMIN']}>
+                <DashboardLayout />
+              </ProtectedRoute>
+            }
+          >
             <Route index element={<Navigate to="/buyer/dashboard" replace />} />
             <Route path="dashboard" element={<BuyerDashboardView />} />
             <Route path="lots" element={<BuyerBrowseLotsView />} />
@@ -73,24 +105,35 @@ export default function App() {
             <Route path="offers" element={<BuyerOffersView />} />
             <Route path="transactions" element={<TransactionsView isBuyer />} />
             <Route path="transactions/:transactionId" element={<TransactionDetailsView />} />
+            <Route path="notifications" element={<NotificationsView />} />
+            <Route path="profile" element={<ProfileView />} />
           </Route>
 
-          {/* Authenticated Admin Control Portal */}
-          <Route path="/admin" element={<DashboardLayout />}>
+          {/* Authenticated Admin Portal (Role Restricted: ADMIN) */}
+          <Route
+            path="/admin"
+            element={
+              <ProtectedRoute allowedRoles={['ADMIN']}>
+                <DashboardLayout />
+              </ProtectedRoute>
+            }
+          >
             <Route index element={<Navigate to="/admin/dashboard" replace />} />
-            <Route path="dashboard" element={<RoleGuard><AdminDashboardView /></RoleGuard>} />
-            <Route path="users" element={<RoleGuard><AdminUsersView /></RoleGuard>} />
-            <Route path="farmers" element={<RoleGuard><AdminFarmersView /></RoleGuard>} />
-            <Route path="buyers" element={<RoleGuard><AdminBuyersView /></RoleGuard>} />
-            <Route path="lots" element={<RoleGuard><AdminLotsView /></RoleGuard>} />
-            <Route path="market-prices" element={<RoleGuard><AdminMarketPricesView /></RoleGuard>} />
-            <Route path="offers" element={<RoleGuard><AdminOffersView /></RoleGuard>} />
-            <Route path="transactions" element={<RoleGuard><AdminTransactionsView /></RoleGuard>} />
-            <Route path="payments" element={<RoleGuard><AdminPaymentsView /></RoleGuard>} />
-            <Route path="logs" element={<RoleGuard><AdminAuditLogsView /></RoleGuard>} />
+            <Route path="dashboard" element={<AdminDashboardView />} />
+            <Route path="users" element={<AdminUsersView />} />
+            <Route path="farmers" element={<AdminFarmersView />} />
+            <Route path="buyers" element={<AdminBuyersView />} />
+            <Route path="lots" element={<AdminLotsView />} />
+            <Route path="market-prices" element={<AdminMarketPricesView />} />
+            <Route path="offers" element={<AdminOffersView />} />
+            <Route path="transactions" element={<AdminTransactionsView />} />
+            <Route path="payments" element={<AdminPaymentsView />} />
+            <Route path="logs" element={<AdminAuditLogsView />} />
+            <Route path="notifications" element={<NotificationsView />} />
+            <Route path="profile" element={<ProfileView />} />
           </Route>
 
-          {/* Fallback to home */}
+          {/* Fallback to Home */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </DashboardProvider>

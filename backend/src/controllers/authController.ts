@@ -71,5 +71,23 @@ export class AuthController {
       next(err)
     }
   }
+
+  static async updateProfile(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({ success: false, message: 'Unauthenticated.' })
+        return
+      }
+
+      const result = await AuthService.updateProfile(req.user.id, req.body)
+      res.json({
+        success: true,
+        message: 'Profile updated successfully.',
+        data: result,
+      })
+    } catch (err) {
+      next(err)
+    }
+  }
 }
 

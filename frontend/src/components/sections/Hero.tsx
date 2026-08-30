@@ -1,18 +1,31 @@
+import { Link } from 'react-router-dom'
 import { Button } from '../ui/Button'
+import { useDashboard } from '../../context/DashboardContext'
+import { LogIn, UserPlus, LogOut, LayoutDashboard, UserCheck } from 'lucide-react'
 
 interface HeroProps {
   lang: 'en' | 'hi'
 }
 
 export function Hero({ lang }: HeroProps) {
+  const { currentUser, isAuthenticated, logout } = useDashboard()
+
+  const getDashboardPath = () => {
+    if (!currentUser) return '/login'
+    if (currentUser.user_type === 'FARMER') return '/farmer'
+    if (currentUser.user_type === 'BUYER') return '/buyer/dashboard'
+    if (currentUser.user_type === 'ADMIN') return '/admin/dashboard'
+    return '/farmer'
+  }
+
   return (
     <section className="relative min-h-screen flex flex-col justify-between">
       {/* Scrim overlay for text legibility over 3D canvas */}
       <div className="absolute inset-0 bg-monsoon/70 backdrop-blur-[1px]" />
 
-      {/* Top Navbar with Brand Logo */}
+      {/* Top Navbar with Brand Logo & Auth Actions */}
       <div className="relative z-10 w-full max-w-7xl mx-auto px-6 py-6 flex items-center justify-between">
-        <a href="/" className="flex items-center gap-3 group">
+        <Link to="/" className="flex items-center gap-3 group">
           <img
             src="/logo.jpg"
             alt="FarmNexus Logo"
@@ -26,16 +39,50 @@ export function Hero({ lang }: HeroProps) {
               Connecting Agriculture
             </span>
           </div>
-        </a>
+        </Link>
 
+        {/* Auth State Actions */}
         <div className="flex items-center gap-3">
-          <a
-            href="/farmer"
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-body font-semibold text-turmeric bg-monsoon/80 border border-turmeric/40 hover:bg-turmeric hover:text-monsoon transition-all"
-          >
-            <span>{lang === 'en' ? 'Farmer Portal' : 'किसान पोर्टल'}</span>
-            <span className="w-1.5 h-1.5 rounded-full bg-datateal animate-pulse" />
-          </a>
+          {isAuthenticated && currentUser ? (
+            <div className="flex items-center gap-2.5">
+              <Link
+                to={getDashboardPath()}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-body font-bold text-monsoon bg-turmeric hover:bg-turmeric/90 shadow-md transition-all cursor-pointer"
+              >
+                <LayoutDashboard className="w-4 h-4" />
+                <span>{lang === 'en' ? 'Dashboard' : 'डैशबोर्ड'}</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-monsoon animate-pulse" />
+              </Link>
+
+              <button
+                type="button"
+                onClick={logout}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-body font-semibold text-wheat/80 bg-wheat/10 hover:bg-wheat/20 hover:text-wheat transition-all cursor-pointer"
+                title="Sign Out"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Logout</span>
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 sm:gap-3">
+              <Link
+                to="/login"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-body font-bold text-wheat/90 hover:text-wheat bg-wheat/10 hover:bg-wheat/15 border border-wheat/20 transition-all cursor-pointer"
+              >
+                <LogIn className="w-3.5 h-3.5 text-turmeric" />
+                <span>{lang === 'en' ? 'Sign In' : 'साइन इन'}</span>
+              </Link>
+
+              <Link
+                to="/register"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-body font-bold text-monsoon bg-turmeric hover:bg-turmeric/90 shadow-md transition-all cursor-pointer"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                <span>{lang === 'en' ? 'Register' : 'रजिस्टर'}</span>
+              </Link>
+            </div>
+          )}
         </div>
       </div>
 
@@ -53,14 +100,16 @@ export function Hero({ lang }: HeroProps) {
         </p>
 
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <a href="/farmer">
+          <Link to={isAuthenticated && currentUser?.user_type === 'FARMER' ? '/farmer/lots/create' : '/register?role=farmer'}>
             <Button variant="fill" size="lg">
               {lang === 'en' ? 'List Your Produce' : 'अपनी उपज लिस्ट करें'}
             </Button>
-          </a>
-          <Button variant="outline" size="lg">
-            {lang === 'en' ? 'Source Verified Crops' : 'सत्यापित फसलें खोजें'}
-          </Button>
+          </Link>
+          <Link to={isAuthenticated && currentUser?.user_type === 'BUYER' ? '/buyer/lots' : '/register?role=buyer'}>
+            <Button variant="outline" size="lg">
+              {lang === 'en' ? 'Source Verified Crops' : 'सत्यापित फसलें खोजें'}
+            </Button>
+          </Link>
         </div>
       </div>
 

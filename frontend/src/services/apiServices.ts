@@ -14,6 +14,10 @@ export const authApi = {
     const res = await apiClient.get('/auth/me')
     return res.data
   },
+  updateProfile: async (payload: any) => {
+    const res = await apiClient.put('/auth/profile', payload)
+    return res.data
+  },
 }
 
 // 2. Lots & Quality APIs

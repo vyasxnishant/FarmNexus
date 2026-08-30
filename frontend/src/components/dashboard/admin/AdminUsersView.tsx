@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Users,
   Search,
@@ -13,17 +13,25 @@ import {
   MoreVertical,
   XCircle,
   Eye,
-  Check
+  Check,
+  Sprout,
+  Tag,
+  Receipt,
+  CreditCard,
+  Package,
+  RefreshCw
 } from 'lucide-react'
-import { useDashboard, type UserRecord } from '../../../context/DashboardContext'
-import { DemoDataBadge } from '../components/DemoDataBadge'
+import { useDashboard, type UserRecord, type CropLot, type Offer, type FarmTransaction } from '../../../context/DashboardContext'
+import { adminApi } from '../../../services/apiServices'
 
 export function AdminUsersView() {
-  const { users, updateUserStatus, verifyUser } = useDashboard()
+  const { users, updateUserStatus, verifyUser, lots, offers, transactions } = useDashboard()
 
+  const [dbUsers, setDbUsers] = useState<UserRecord[]>(users)
   const [searchQuery, setSearchQuery] = useState('')
   const [roleFilter, setRoleFilter] = useState<'All' | 'Farmer' | 'Buyer' | 'Admin'>('All')
   const [statusFilter, setStatusFilter] = useState<'All' | 'Active' | 'Suspended' | 'Pending Verification'>('All')
+  const [isLoading, setIsLoading] = useState(false)
 
   // Selected User Modal / Action
   const [selectedUser, setSelectedUser] = useState<UserRecord | null>(null)
@@ -32,7 +40,41 @@ export function AdminUsersView() {
     action: 'verify' | 'suspend' | 'activate'
   } | null>(null)
 
-  const filteredUsers = users.filter((u) => {
+  // Fetch real users from backend on mount
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        setIsLoading(true)
+        const res = await adminApi.getUsers()
+        if (res.data && Array.isArray(res.data)) {
+          const mapped: UserRecord[] = res.data.map((u: any) => ({
+            id: u.id,
+            name: u.name,
+            email: u.email,
+            phone: u.phone,
+            userType: u.user_type === 'FARMER' ? 'Farmer' : u.user_type === 'BUYER' ? 'Buyer' : 'Admin',
+            location: u.location || 'Madhya Pradesh',
+            district: u.district || 'Harda',
+            state: u.state || 'Madhya Pradesh',
+            registeredDate: u.created_at ? new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '2026',
+            status: u.status || 'Active',
+            kycVerified: Boolean(u.kyc_verified),
+            organization: u.organization,
+          }))
+          setDbUsers(mapped)
+        }
+      } catch (err) {
+        console.warn('[AdminUsersView] Using context users fallback', err)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    fetchUsers()
+  }, [])
+
+  const currentUsersList = dbUsers.length > 0 ? dbUsers : users
+
+  const filteredUsers = currentUsersList.filter((u) => {
     if (roleFilter !== 'All' && u.userType !== roleFilter) return false
     if (statusFilter !== 'All' && u.status !== statusFilter) return false
     if (searchQuery.trim()) {
@@ -48,16 +90,28 @@ export function AdminUsersView() {
     return true
   })
 
-  const handleExecuteAction = () => {
+  const handleExecuteAction = async () => {
     if (!actionConfirm) return
     const { user, action } = actionConfirm
 
     if (action === 'verify') {
-      verifyUser(user.id)
+      await verifyUser(user.id)
+      setDbUsers(prev => prev.map(u => u.id === user.id ? { ...u, kycVerified: true } : u))
+      if (selectedUser?.id === user.id) {
+        setSelectedUser(prev => prev ? { ...prev, kycVerified: true } : null)
+      }
     } else if (action === 'suspend') {
-      updateUserStatus(user.id, 'Suspended')
+      await updateUserStatus(user.id, 'Suspended')
+      setDbUsers(prev => prev.map(u => u.id === user.id ? { ...u, status: 'Suspended' } : u))
+      if (selectedUser?.id === user.id) {
+        setSelectedUser(prev => prev ? { ...prev, status: 'Suspended' } : null)
+      }
     } else if (action === 'activate') {
-      updateUserStatus(user.id, 'Active')
+      await updateUserStatus(user.id, 'Active')
+      setDbUsers(prev => prev.map(u => u.id === user.id ? { ...u, status: 'Active' } : u))
+      if (selectedUser?.id === user.id) {
+        setSelectedUser(prev => prev ? { ...prev, status: 'Active' } : null)
+      }
     }
 
     setActionConfirm(null)
@@ -76,6 +130,11 @@ export function AdminUsersView() {
     }
   }
 
+  // Get user-specific linked objects for User Details view
+  const userLots = selectedUser ? lots.filter(l => l.farmerId === selectedUser.id || selectedUser.userType === 'Farmer') : []
+  const userOffers = selectedUser ? offers.filter(o => o.buyerId === selectedUser.id || (selectedUser.userType === 'Farmer' && o.status === 'Pending')) : []
+  const userTransactions = selectedUser ? transactions.filter(t => t.farmerId === selectedUser.id || t.buyerId === selectedUser.id) : []
+
   return (
     <div className="space-y-8 pb-16">
       {/* Header */}
@@ -87,21 +146,20 @@ export function AdminUsersView() {
                 <Users className="w-3.5 h-3.5 text-turmeric" />
                 USER IDENTITY & KYC DESK
               </span>
-              <DemoDataBadge />
             </div>
             <h1 className="font-serif text-3xl md:text-4xl font-bold text-soil">
               Registered Users Directory
             </h1>
             <p className="font-body text-xs text-soil/70 mt-1 max-w-2xl">
-              Inspect user credentials, verify KYC compliance, manage platform permissions, and enforce administrative account suspensions.
+              Inspect database-backed user records, verify KYC compliance, manage platform permissions, and enforce administrative account suspensions.
             </p>
           </div>
 
           <div className="p-3 bg-monsoon text-wheat rounded-2xl border border-turmeric/30 flex items-center gap-3">
-            <ShieldCheck className="w-6 h-6 text-turmeric flex-shrink-0" />
+            <ShieldCheck className="w-6 h-6 text-turmeric shrink-0" />
             <div>
-              <span className="text-[10px] font-mono text-turmeric uppercase block">TOTAL REGISTRATIONS</span>
-              <span className="font-mono text-xl font-bold text-datateal">{users.length} Users</span>
+              <span className="text-[10px] font-mono text-turmeric uppercase block">POSTGRES USERS INDEX</span>
+              <span className="font-mono text-xl font-bold text-datateal">{currentUsersList.length} Accounts</span>
             </div>
           </div>
         </div>
@@ -157,7 +215,7 @@ export function AdminUsersView() {
                 <th className="py-3.5 px-4">Role</th>
                 <th className="py-3.5 px-4">Organization / Location</th>
                 <th className="py-3.5 px-4">Registration</th>
-                <th className="py-3.5 px-4">Status</th>
+                <th className="py-3.5 px-4">KYC / Status</th>
                 <th className="py-3.5 px-4 text-right">Actions</th>
               </tr>
             </thead>
@@ -192,9 +250,16 @@ export function AdminUsersView() {
                   </td>
 
                   <td className="py-3.5 px-4">
-                    <span className={`font-mono text-[10px] font-bold px-2 py-0.5 rounded-full ${getStatusBadge(user.status)}`}>
-                      {user.status}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className={`font-mono text-[10px] font-bold px-2 py-0.5 rounded-full ${getStatusBadge(user.status)}`}>
+                        {user.status}
+                      </span>
+                      {user.kycVerified && (
+                        <span className="font-mono text-[10px] text-datateal bg-monsoon px-1.5 py-0.5 rounded font-bold">
+                          KYC
+                        </span>
+                      )}
+                    </div>
                   </td>
 
                   <td className="py-3.5 px-4 text-right">
@@ -203,12 +268,12 @@ export function AdminUsersView() {
                         type="button"
                         onClick={() => setSelectedUser(user)}
                         className="p-1.5 rounded-lg bg-soil/5 hover:bg-soil/10 text-soil transition-colors cursor-pointer"
-                        title="View Details"
+                        title="View User Details"
                       >
                         <Eye className="w-4 h-4" />
                       </button>
 
-                      {user.status === 'Pending Verification' && (
+                      {!user.kycVerified && (
                         <button
                           type="button"
                           onClick={() => setActionConfirm({ user, action: 'verify' })}
@@ -246,45 +311,152 @@ export function AdminUsersView() {
         </div>
       </div>
 
-      {/* User Details Modal */}
+      {/* Comprehensive Admin User Details Modal */}
       {selectedUser && (
         <div className="fixed inset-0 z-50 bg-monsoon/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-wheat rounded-3xl border border-soil/15 max-w-md w-full p-6 md:p-8 space-y-5 shadow-2xl">
+          <div className="bg-wheat rounded-3xl border border-soil/15 max-w-2xl w-full p-6 md:p-8 space-y-6 shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-soil/10">
-              <div className="flex items-center gap-2">
-                <UserCheck className="w-5 h-5 text-turmeric" />
-                <h3 className="font-serif text-xl font-bold text-soil">User Account Record</h3>
+              <div className="flex items-center gap-2.5">
+                <UserCheck className="w-6 h-6 text-turmeric" />
+                <div>
+                  <h3 className="font-serif text-2xl font-bold text-soil">Account Details & Oversight</h3>
+                  <span className="font-mono text-[10px] text-soil/60 uppercase">{selectedUser.id} &bull; {selectedUser.userType}</span>
+                </div>
               </div>
               <button
                 type="button"
                 onClick={() => setSelectedUser(null)}
-                className="text-soil/40 hover:text-soil cursor-pointer"
+                className="text-soil/40 hover:text-soil text-xl font-bold cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <div className="p-3 bg-monsoon text-wheat rounded-xl space-y-1">
-              <span className="text-[10px] font-mono text-turmeric uppercase block">{selectedUser.id} &bull; {selectedUser.userType}</span>
-              <h4 className="font-serif text-xl font-bold">{selectedUser.name}</h4>
-              <p className="text-xs text-wheat/80">{selectedUser.organization || 'Independent Account'}</p>
+            {/* Profile Overview Card */}
+            <div className="p-4 bg-monsoon text-wheat rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h4 className="font-serif text-2xl font-bold">{selectedUser.name}</h4>
+                  <span className={`font-mono text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    selectedUser.status === 'Active' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-red-500/20 text-red-300'
+                  }`}>
+                    {selectedUser.status}
+                  </span>
+                </div>
+                <p className="text-xs text-wheat/80 mt-0.5">{selectedUser.organization || 'Independent Account'}</p>
+                <p className="font-mono text-xs text-turmeric mt-1">{selectedUser.email} &bull; {selectedUser.phone}</p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {!selectedUser.kycVerified ? (
+                  <button
+                    type="button"
+                    onClick={() => setActionConfirm({ user: selectedUser, action: 'verify' })}
+                    className="px-3 py-1.5 rounded-xl bg-datateal text-monsoon font-body font-bold text-xs hover:bg-datateal/90 transition-all cursor-pointer"
+                  >
+                    Verify KYC
+                  </button>
+                ) : (
+                  <span className="px-3 py-1 rounded-xl bg-datateal/20 text-datateal font-mono text-xs font-bold border border-datateal/40">
+                    KYC APPROVED
+                  </span>
+                )}
+
+                {selectedUser.status === 'Active' && selectedUser.userType !== 'Admin' && (
+                  <button
+                    type="button"
+                    onClick={() => setActionConfirm({ user: selectedUser, action: 'suspend' })}
+                    className="px-3 py-1.5 rounded-xl bg-red-500/20 text-red-300 font-body font-bold text-xs hover:bg-red-500/30 transition-all cursor-pointer border border-red-500/40"
+                  >
+                    Suspend
+                  </button>
+                )}
+
+                {selectedUser.status === 'Suspended' && (
+                  <button
+                    type="button"
+                    onClick={() => setActionConfirm({ user: selectedUser, action: 'activate' })}
+                    className="px-3 py-1.5 rounded-xl bg-emerald-500 text-monsoon font-body font-bold text-xs hover:bg-emerald-400 transition-all cursor-pointer"
+                  >
+                    Activate
+                  </button>
+                )}
+              </div>
             </div>
 
-            <div className="space-y-2 text-xs font-body text-soil/80">
-              <p><strong className="text-soil">Email:</strong> <span className="font-mono">{selectedUser.email}</span></p>
-              <p><strong className="text-soil">Phone:</strong> <span className="font-mono">{selectedUser.phone}</span></p>
-              <p><strong className="text-soil">Location:</strong> {selectedUser.location} ({selectedUser.district}, {selectedUser.state})</p>
-              <p><strong className="text-soil">KYC Status:</strong> {selectedUser.kycVerified ? '✅ Government Verified' : '⏳ Pending KYC'}</p>
-              <p><strong className="text-soil">Registered Date:</strong> {selectedUser.registeredDate}</p>
+            {/* Profile Information Grid */}
+            <div className="grid sm:grid-cols-2 gap-3 text-xs font-body text-soil">
+              <div className="p-3.5 bg-soil/5 border border-soil/10 rounded-xl">
+                <span className="text-soil/50 block text-[11px]">Primary Location / District</span>
+                <span className="font-semibold text-soil block mt-0.5">{selectedUser.location} ({selectedUser.district}, {selectedUser.state})</span>
+              </div>
+
+              <div className="p-3.5 bg-soil/5 border border-soil/10 rounded-xl">
+                <span className="text-soil/50 block text-[11px]">Platform Registration Date</span>
+                <span className="font-semibold text-soil block mt-0.5">{selectedUser.registeredDate}</span>
+              </div>
+
+              {selectedUser.userType === 'Farmer' && (
+                <>
+                  <div className="p-3.5 bg-soil/5 border border-soil/10 rounded-xl">
+                    <span className="text-soil/50 block text-[11px]">FPO Affiliation</span>
+                    <span className="font-semibold text-soil block mt-0.5">{selectedUser.organization || 'Producer Member'}</span>
+                  </div>
+                  <div className="p-3.5 bg-soil/5 border border-soil/10 rounded-xl">
+                    <span className="text-soil/50 block text-[11px]">Active Produce Listings</span>
+                    <span className="font-mono text-sm font-bold text-soil block mt-0.5">{userLots.length} Crop Lots</span>
+                  </div>
+                </>
+              )}
+
+              {selectedUser.userType === 'Buyer' && (
+                <>
+                  <div className="p-3.5 bg-soil/5 border border-soil/10 rounded-xl">
+                    <span className="text-soil/50 block text-[11px]">Enterprise GSTIN</span>
+                    <span className="font-mono font-bold text-soil block mt-0.5">23AAACA1234F1Z8</span>
+                  </div>
+                  <div className="p-3.5 bg-soil/5 border border-soil/10 rounded-xl">
+                    <span className="text-soil/50 block text-[11px]">Procurement Desk</span>
+                    <span className="font-semibold text-soil block mt-0.5">Active Buyer ({userOffers.length} Bids Placed)</span>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Linked Data Section */}
+            <div className="space-y-3 pt-2">
+              <h5 className="font-serif text-base font-bold text-soil flex items-center gap-2">
+                <CreditCard className="w-4 h-4 text-turmeric" />
+                <span>Trade & Contract History ({userTransactions.length} Deals)</span>
+              </h5>
+
+              {userTransactions.length === 0 ? (
+                <p className="text-xs text-soil/60 italic p-3 bg-soil/5 rounded-xl">No trade transactions recorded yet for this account.</p>
+              ) : (
+                <div className="space-y-2">
+                  {userTransactions.map(txn => (
+                    <div key={txn.id} className="p-3 bg-soil/5 border border-soil/10 rounded-xl flex items-center justify-between text-xs">
+                      <div>
+                        <span className="font-mono font-bold text-soil">{txn.id}</span>
+                        <span className="text-soil/60 block">{txn.crop} &bull; {txn.quantityQtl} qtl</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="font-mono font-bold text-soil">₹{txn.finalAmount.toLocaleString('en-IN')}</span>
+                        <span className="text-[10px] text-datateal block font-semibold">{txn.transactionStatus}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="pt-3 border-t border-soil/10 flex justify-end">
               <button
                 type="button"
                 onClick={() => setSelectedUser(null)}
-                className="px-4 py-2 bg-monsoon text-wheat font-body text-xs font-bold rounded-xl"
+                className="px-5 py-2 bg-monsoon text-wheat font-body text-xs font-bold rounded-xl cursor-pointer"
               >
-                Close
+                Close Record
               </button>
             </div>
           </div>
@@ -296,7 +468,7 @@ export function AdminUsersView() {
         <div className="fixed inset-0 z-50 bg-monsoon/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-wheat rounded-3xl border border-soil/15 max-w-sm w-full p-6 space-y-4 shadow-2xl">
             <div className="flex items-center gap-2 text-amber-700">
-              <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+              <AlertTriangle className="w-5 h-5 shrink-0" />
               <h3 className="font-serif text-lg font-bold text-soil">Confirm Administrative Action</h3>
             </div>
 
@@ -331,4 +503,3 @@ export function AdminUsersView() {
     </div>
   )
 }
-

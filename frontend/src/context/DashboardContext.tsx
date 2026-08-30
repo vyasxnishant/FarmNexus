@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
-import { authApi, lotApi, marketPriceApi, offerApi, transactionApi, adminApi, paymentApi } from '../services/apiServices'
+import { authApi, lotApi, marketPriceApi, offerApi, transactionApi, adminApi, matchingApi } from '../services/apiServices'
 
 export type CropType = 'Wheat (Sharbati)' | 'Basmati Rice' | 'Soybean' | 'Chana (Gram)' | 'Mustard' | 'Maize' | string
 export type QualityGrade = 'Grade A (Export)' | 'Grade A' | 'Grade B' | 'Grade C'
@@ -12,6 +12,7 @@ export type QuantityUnit = 'Quintal' | 'Kg' | 'Tonne'
 
 export interface CropLot {
   id: string
+  farmerId?: string
   crop: string
   cropHi?: string
   category?: string
@@ -69,7 +70,7 @@ export interface BuyerMatch {
   buyerName: string
   company: string
   verified: boolean
-  reliabilityScore: number // e.g. 4.9
+  reliabilityScore: number
   tradesCompleted: number
   crop: CropType
   requiredQuantityQtl: number
@@ -99,6 +100,7 @@ export interface Offer {
   createdDate: string
   paymentTerms: string
   pickupLocation: string
+  message?: string
 }
 
 export interface PaymentTransaction {
@@ -107,37 +109,25 @@ export interface PaymentTransaction {
   lotTitle: string
   buyerName: string
   amount: number
-  status: PaymentStatus
+  status: 'Processing' | 'Paid' | 'Pending' | 'Delayed'
   dueDate: string
   paidDate?: string
-  paymentMethod: 'UPI' | 'e-NWR Escrow' | 'Direct Bank'
+  paymentMethod: 'UPI' | 'e-NWR Escrow' | 'NetBanking'
   referenceId: string
   timeline: {
     step: string
     completed: boolean
-    date: string
+    date?: string
   }[]
 }
 
-export type TransactionPaymentStatus =
-  | 'Payment Pending'
-  | 'Payment Processing'
-  | 'Payment Successful'
-  | 'Payment Failed'
-  | 'Payment Refunded'
-
-export type TransactionLifecycleStatus =
-  | 'Payment Pending'
-  | 'Payment Completed'
-  | 'In Transit'
-  | 'Delivered'
-  | 'Completed'
-  | 'Cancelled'
+export type TransactionPaymentStatus = 'Payment Pending' | 'Payment Processing' | 'Payment Successful' | 'Payment Failed' | 'Refunded'
+export type TransactionLifecycleStatus = 'Payment Pending' | 'Payment Completed' | 'In Transit' | 'Delivered' | 'Completed' | 'Cancelled' | 'Under Dispute'
 
 export interface TransactionStageEvent {
   stage: string
   label: string
-  labelHi?: string
+  labelHi: string
   timestamp: string
   completed: boolean
   description: string
@@ -150,7 +140,7 @@ export interface FarmTransaction {
   farmerId: string
   farmerName: string
   farmerLocation: string
-  farmerPhone: string
+  farmerPhone?: string
   buyerId: string
   buyerName: string
   buyerOrganization: string
@@ -171,7 +161,7 @@ export interface FarmTransaction {
   transactionStatus: TransactionLifecycleStatus
   timeline: TransactionStageEvent[]
   paymentDetails?: {
-    method: 'UPI' | 'NetBanking' | 'e-NWR Escrow' | 'RTGS/NEFT'
+    method: string
     transactionRef?: string
     payerVpa?: string
     paidAt?: string
@@ -193,7 +183,7 @@ export interface NotificationItem {
 
 export interface FarmerProfile {
   name: string
-  nameHi: string
+  nameHi?: string
   phone: string
   village: string
   district: string
@@ -260,38 +250,60 @@ export interface AuditLog {
   details: string
 }
 
+export interface AuthenticatedUser {
+  id: string
+  name: string
+  email: string
+  phone: string
+  user_type: 'FARMER' | 'BUYER' | 'ADMIN'
+  location: string
+  district?: string
+  state?: string
+  status: 'Active' | 'Suspended' | 'Pending Verification'
+  kyc_verified: boolean
+  organization?: string
+}
+
 export type UserRole = 'farmer' | 'buyer' | 'admin'
 
 interface DashboardContextType {
   lang: 'en' | 'hi'
   setLang: (lang: 'en' | 'hi') => void
   toggleLang: () => void
+  currentUser: AuthenticatedUser | null
+  isAuthenticated: boolean
+  isLoadingAuth: boolean
   userRole: UserRole
   setUserRole: (role: UserRole) => void
+  login: (email: string, password: string) => Promise<AuthenticatedUser>
+  register: (payload: any) => Promise<AuthenticatedUser>
+  logout: () => void
+  refreshUserData: () => Promise<void>
+  updateUserProfile: (data: any) => Promise<void>
   profile: FarmerProfile
   buyerProfile: BuyerProfile
   buyerRequirement: BuyerRequirement
   updateBuyerRequirement: (req: Partial<BuyerRequirement>) => void
   lots: CropLot[]
-  addLot: (lot: Omit<CropLot, 'id' | 'createdAt' | 'matchedBuyersCount' | 'activeOffersCount'>) => string
-  updateLot: (lotId: string, data: Partial<CropLot>) => void
+  addLot: (lot: Omit<CropLot, 'id' | 'createdAt' | 'matchedBuyersCount' | 'activeOffersCount'>) => Promise<string>
+  updateLot: (lotId: string, data: Partial<CropLot>) => Promise<void>
   updateLotStatus: (lotId: string, status: LotStatus) => void
-  deleteLot: (lotId: string) => void
+  deleteLot: (lotId: string) => Promise<void>
   publishDraftLot: (lotId: string) => void
   pauseLot: (lotId: string) => void
   flagLot: (lotId: string, reason: string) => void
   getLotById: (lotId: string) => CropLot | undefined
   offers: Offer[]
-  acceptOffer: (offerId: string) => void
-  rejectOffer: (offerId: string) => void
-  counterOffer: (offerId: string, counterPrice: number) => void
+  acceptOffer: (offerId: string) => Promise<void>
+  rejectOffer: (offerId: string) => Promise<void>
+  counterOffer: (offerId: string, counterPrice: number) => Promise<void>
   makeBuyerOffer: (offerData: {
     lotId: string
     offeredPrice: number
     quantityQtl: number
     paymentTerms?: string
     message?: string
-  }) => string
+  }) => Promise<string>
   cancelBuyerOffer: (offerId: string) => void
   calculateLotMatchScore: (lot: CropLot, req?: BuyerRequirement) => MatchScoreResult
   payments: PaymentTransaction[]
@@ -306,10 +318,10 @@ interface DashboardContextType {
   advanceTransactionLifecycle: (
     transactionId: string,
     newStatus: TransactionLifecycleStatus
-  ) => void
+  ) => Promise<void>
   users: UserRecord[]
-  updateUserStatus: (userId: string, status: UserRecord['status']) => void
-  verifyUser: (userId: string) => void
+  updateUserStatus: (userId: string, status: UserRecord['status']) => Promise<void>
+  verifyUser: (userId: string) => Promise<void>
   auditLogs: AuditLog[]
   addAuditLog: (action: string, targetType: AuditLog['targetType'], targetId: string, details: string) => void
   notifications: NotificationItem[]
@@ -326,177 +338,17 @@ interface DashboardContextType {
   setCounterModalOffer: (offer: Offer | null) => void
 }
 
-const initialProfile: FarmerProfile = {
-  name: 'Ramesh Patel',
-  nameHi: 'रमेश पटेल',
-  phone: '+91 98261 44520',
-  village: 'Sirali, Harda',
-  district: 'Harda',
-  state: 'Madhya Pradesh',
-  pincode: '461331',
-  fpoName: 'Narmada Valley Kisan Producer Co.',
-  fpoRole: 'Active Shareholder & Lead Producer',
-  totalLandAcres: 14.5,
-  kycVerified: true,
-  kisanCreditCardVerified: true,
-  bankAccountMasked: 'SBI •••• 8842',
-  upiId: 'ramesh.patel@sbi',
-  memberSince: 'Oct 2024',
-}
-
-const initialLots: CropLot[] = [
-  {
-    id: 'LOT-AGN-081',
-    crop: 'Wheat (Sharbati)',
-    cropHi: 'गेहूं (शरबती)',
-    category: 'Grains & Cereals',
-    variety: 'C-306 Sharbati Premium',
-    quantityQtl: 140,
-    unit: 'Quintal',
-    grade: 'Grade A (Export)',
-    visualQuality: 'Excellent',
-    damageLevel: 'None',
-    grainSize: 'Uniform Bold',
-    expectedPrice: 2750,
-    minAcceptablePrice: 2650,
-    marketReferencePrice: 2840,
-    moisturePercent: 10.4,
-    foreignMatterPercent: 0.8,
-    damagedGrainPercent: 0.5,
-    qualityNotes: 'Machine cleaned, sun dried on pucca floor, zero weevil infestation.',
-    description: 'Golden luster Sharbati wheat, tested for 12.5% protein and low moisture. Ready for immediate container loading.',
-    imageUrl: 'https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b?auto=format&fit=crop&w=800&q=80',
-    harvestDate: '2026-04-12',
-    availableFrom: '2026-04-15',
-    availableUntil: '2026-06-30',
-    location: 'Sirali Farm Godown #2, Harda',
-    state: 'Madhya Pradesh',
-    district: 'Harda',
-    village: 'Sirali',
-    pickupLocation: 'Godown #2, Main Road',
-    status: 'Active',
-    createdAt: '2 days ago',
-    matchedBuyersCount: 6,
-    activeOffersCount: 3,
-    highestOffer: 2780,
-    isDemo: true,
-  },
-  {
-    id: 'LOT-AGN-079',
-    crop: 'Soybean',
-    cropHi: 'सोयाबीन',
-    category: 'Oilseeds',
-    variety: 'JS-9560 Yellow',
-    quantityQtl: 95,
-    unit: 'Quintal',
-    grade: 'Grade A',
-    visualQuality: 'Good',
-    damageLevel: 'Low',
-    grainSize: 'Medium',
-    expectedPrice: 4950,
-    minAcceptablePrice: 4800,
-    marketReferencePrice: 5080,
-    moisturePercent: 11.2,
-    foreignMatterPercent: 1.1,
-    damagedGrainPercent: 0.9,
-    qualityNotes: 'High oil content, graded through 4mm sieve.',
-    description: 'Cleaned yellow seed soybean from certified organic transition field.',
-    imageUrl: 'https://images.unsplash.com/photo-1599588673360-39908cfd0d5d?auto=format&fit=crop&w=800&q=80',
-    harvestDate: '2026-05-02',
-    availableFrom: '2026-05-05',
-    availableUntil: '2026-07-15',
-    location: 'Sirali Farm Godown #1, Harda',
-    state: 'Madhya Pradesh',
-    district: 'Harda',
-    village: 'Sirali',
-    pickupLocation: 'Godown #1 Gate B',
-    status: 'Under Offer',
-    createdAt: '4 days ago',
-    matchedBuyersCount: 4,
-    activeOffersCount: 2,
-    highestOffer: 5020,
-    isDemo: true,
-  },
-  {
-    id: 'LOT-AGN-072',
-    crop: 'Chana (Gram)',
-    cropHi: 'चना (देसी)',
-    category: 'Pulses & Legumes',
-    variety: 'Desi Dollar Chana',
-    quantityQtl: 60,
-    unit: 'Quintal',
-    grade: 'Grade A',
-    visualQuality: 'Excellent',
-    damageLevel: 'None',
-    grainSize: 'Uniform Bold',
-    expectedPrice: 5800,
-    minAcceptablePrice: 5600,
-    marketReferencePrice: 5850,
-    moisturePercent: 9.8,
-    foreignMatterPercent: 0.6,
-    damagedGrainPercent: 0.4,
-    qualityNotes: 'Uniform bold grain size, ideal for institutional processing.',
-    description: 'Dry harvested desi gram stored in food-grade bags.',
-    imageUrl: 'https://images.unsplash.com/photo-1515543237350-b3eea1ec8082?auto=format&fit=crop&w=800&q=80',
-    harvestDate: '2026-03-28',
-    availableFrom: '2026-04-01',
-    availableUntil: '2026-05-30',
-    location: 'Harda Mandi Warehouse',
-    state: 'Madhya Pradesh',
-    district: 'Harda',
-    village: 'Harda APMC',
-    pickupLocation: 'Shed 4, Bay 12',
-    status: 'Draft',
-    createdAt: '1 week ago',
-    matchedBuyersCount: 2,
-    activeOffersCount: 0,
-    isDemo: true,
-  },
-  {
-    id: 'LOT-AGN-064',
-    crop: 'Mustard',
-    cropHi: 'सरसों',
-    variety: 'Pusa Bold',
-    quantityQtl: 80,
-    unit: 'Quintal',
-    grade: 'Grade B',
-    visualQuality: 'Good',
-    damageLevel: 'Low',
-    grainSize: 'Medium',
-    expectedPrice: 5350,
-    minAcceptablePrice: 5200,
-    marketReferencePrice: 5460,
-    moisturePercent: 8.5,
-    foreignMatterPercent: 1.5,
-    damagedGrainPercent: 1.2,
-    qualityNotes: '42% estimated oil recovery.',
-    harvestDate: '2026-03-10',
-    availableFrom: '2026-03-12',
-    availableUntil: '2026-04-30',
-    location: 'Sirali Godown #1, Harda',
-    state: 'Madhya Pradesh',
-    district: 'Harda',
-    village: 'Sirali',
-    pickupLocation: 'Godown #1 Gate A',
-    status: 'Sold',
-    createdAt: '3 weeks ago',
-    matchedBuyersCount: 5,
-    activeOffersCount: 0,
-    highestOffer: 5400,
-    isDemo: true,
-  },
-]
-
+// Baseline Fallbacks for Market Intelligence & Public Feeds
 const initialMarketData: MarketPriceData[] = [
   {
     crop: 'Wheat (Sharbati)',
     mandi: 'Harda APMC Mandi',
     state: 'Madhya Pradesh',
     distanceKm: 18,
-    minPrice: 2590,
+    minPrice: 2580,
     modalPrice: 2720,
-    maxPrice: 2850,
-    priceChange: 2.8,
+    maxPrice: 2840,
+    priceChange: 2.4,
     trend: 'up',
     lastUpdated: '12 mins ago',
     sparkline: [2610, 2630, 2660, 2690, 2680, 2710, 2720],
@@ -553,32 +405,6 @@ const initialMarketData: MarketPriceData[] = [
     lastUpdated: '25 mins ago',
     sparkline: [4400, 4380, 4360, 4350, 4340, 4310, 4320],
   },
-  {
-    crop: 'Chana (Gram)',
-    mandi: 'Harda APMC Mandi',
-    state: 'Madhya Pradesh',
-    distanceKm: 18,
-    minPrice: 5600,
-    modalPrice: 5850,
-    maxPrice: 6020,
-    priceChange: 2.2,
-    trend: 'up',
-    lastUpdated: '30 mins ago',
-    sparkline: [5700, 5740, 5760, 5800, 5820, 5840, 5850],
-  },
-  {
-    crop: 'Mustard',
-    mandi: 'Hoshangabad Mandi',
-    state: 'Madhya Pradesh',
-    distanceKm: 72,
-    minPrice: 5200,
-    modalPrice: 5460,
-    maxPrice: 5620,
-    priceChange: 1.1,
-    trend: 'up',
-    lastUpdated: '18 mins ago',
-    sparkline: [5380, 5400, 5420, 5410, 5440, 5450, 5460],
-  },
 ]
 
 const initialBuyerMatches: BuyerMatch[] = [
@@ -612,950 +438,283 @@ const initialBuyerMatches: BuyerMatch[] = [
     matchPercentage: 96,
     tags: ['e-NAM Partner', 'e-NWR Warehouse', 'Zero Deduction'],
   },
-  {
-    id: 'BUY-03',
-    buyerName: 'BigBasket Fresh Hub',
-    company: 'Innovative Retail Concepts Pvt Ltd',
-    verified: true,
-    reliabilityScore: 4.8,
-    tradesCompleted: 94,
-    crop: 'Wheat (Sharbati)',
-    requiredQuantityQtl: 100,
-    offeredPrice: 2740,
-    requiredGrade: 'Grade A',
-    deliveryLocation: 'Bhopal DC',
-    matchPercentage: 92,
-    tags: ['ONDC Network', 'Farm-gate Pickup'],
-  },
-  {
-    id: 'BUY-04',
-    buyerName: 'Adani Agri Logistics Ltd.',
-    company: 'Adani Wilmar Supply Group',
-    verified: true,
-    reliabilityScore: 4.85,
-    tradesCompleted: 210,
-    crop: 'Soybean',
-    requiredQuantityQtl: 300,
-    offeredPrice: 4980,
-    requiredGrade: 'Grade A',
-    deliveryLocation: 'Dewas Plant',
-    matchPercentage: 89,
-    tags: ['Bulk Buyer', 'Contract Assured'],
-  },
-]
-
-const initialOffers: Offer[] = [
-  {
-    id: 'OFF-9041',
-    lotId: 'LOT-2026-081',
-    lotTitle: 'Wheat (Sharbati) • 140 qtl',
-    buyerId: 'BUY-01',
-    buyerName: 'Vikram Mehta (AgroCorp Direct)',
-    buyerCompany: 'AgroCorp International Ltd.',
-    buyerReliability: 4.9,
-    buyerVerified: true,
-    offeredPrice: 2780,
-    lotExpectedPrice: 2750,
-    quantityQtl: 140,
-    totalAmount: 389200,
-    expiresInHours: 14,
-    status: 'Pending',
-    createdDate: 'Today, 06:30 AM',
-    paymentTerms: '100% UPI upon electronic weightment verification',
-    pickupLocation: 'Farm-gate pickup arranged by buyer',
-  },
-  {
-    id: 'OFF-9038',
-    lotId: 'LOT-2026-079',
-    lotTitle: 'Soybean • 95 qtl',
-    buyerId: 'BUY-02',
-    buyerName: 'Sanjay Sharma (ITC Choupal)',
-    buyerCompany: 'ITC Agri Business Division',
-    buyerReliability: 4.95,
-    buyerVerified: true,
-    offeredPrice: 5020,
-    lotExpectedPrice: 4950,
-    quantityQtl: 95,
-    totalAmount: 476900,
-    expiresInHours: 26,
-    status: 'Pending',
-    createdDate: 'Yesterday, 04:15 PM',
-    paymentTerms: 'Direct bank payout within 2 hours of QA pass',
-    pickupLocation: 'Harda Mandi Hub or Farm-gate (+₹30/qtl transport rebate)',
-  },
-  {
-    id: 'OFF-9029',
-    lotId: 'LOT-2026-081',
-    lotTitle: 'Wheat (Sharbati) • 140 qtl',
-    buyerId: 'BUY-03',
-    buyerName: 'Pooja Verma (BigBasket Fresh)',
-    buyerCompany: 'BigBasket Agro Hub',
-    buyerReliability: 4.8,
-    buyerVerified: true,
-    offeredPrice: 2720,
-    lotExpectedPrice: 2750,
-    quantityQtl: 100,
-    totalAmount: 272000,
-    expiresInHours: 4,
-    status: 'Pending',
-    createdDate: 'Yesterday, 11:00 AM',
-    paymentTerms: 'ONDC escrow auto-release on gate receipt',
-    pickupLocation: 'Bhopal Distribution Center',
-  },
-]
-
-const initialPayments: PaymentTransaction[] = [
-  {
-    id: 'PAY-2026-104',
-    offerId: 'OFF-8891',
-    lotTitle: 'Mustard (Pusa Bold) • 80 qtl',
-    buyerName: 'Shri Ram Edible Oils Ltd.',
-    amount: 432000,
-    status: 'Paid',
-    dueDate: '2026-05-14',
-    paidDate: '2026-05-14 (11:42 AM)',
-    paymentMethod: 'UPI',
-    referenceId: 'UPI-RR-9948124021',
-    timeline: [
-      { step: 'Deal Accepted', completed: true, date: 'May 12, 2026' },
-      { step: 'Produce Weighed & Tested', completed: true, date: 'May 13, 2026' },
-      { step: 'e-NWR Escrow Funded', completed: true, date: 'May 13, 2026' },
-      { step: 'Funds Credited to SBI A/c', completed: true, date: 'May 14, 2026' },
-    ],
-  },
-  {
-    id: 'PAY-2026-108',
-    offerId: 'OFF-8950',
-    lotTitle: 'Wheat (Sharbati) • 60 qtl',
-    buyerName: 'Narmada Flour Mills Pvt Ltd',
-    amount: 162000,
-    status: 'Processing',
-    dueDate: 'Today, by 05:00 PM',
-    paymentMethod: 'e-NWR Escrow',
-    referenceId: 'ESCROW-MP-84021',
-    timeline: [
-      { step: 'Deal Accepted', completed: true, date: 'Yesterday' },
-      { step: 'Produce Dispatched', completed: true, date: 'Today 08:00 AM' },
-      { step: 'Quality Verification at Gate', completed: true, date: 'Today 11:30 AM' },
-      { step: 'UPI Payout Trigger', completed: false, date: 'Expected 05:00 PM' },
-    ],
-  },
-]
-
-const initialFarmTransactions: FarmTransaction[] = [
-  {
-    id: 'TXN-2026-9041',
-    lotId: 'LOT-AGN-081',
-    offerId: 'OFF-8950',
-    farmerId: 'FRM-MP-091',
-    farmerName: 'Ramesh Patel',
-    farmerLocation: 'Sirali Farm Godown #2, Harda, MP',
-    farmerPhone: '+91 98261 44520',
-    buyerId: 'BUY-ME-01',
-    buyerName: 'Sunil Aggarwal',
-    buyerOrganization: 'AgroCorp Direct Procurement Ltd.',
-    buyerLocation: 'Indore Processing Terminal, MP',
-    crop: 'Wheat (Sharbati)',
-    cropHi: 'गेहूं (शरबती)',
-    variety: 'C-306 Sharbati Premium',
-    quantityQtl: 60,
-    unit: 'Quintal',
-    agreedPricePerQtl: 2780,
-    produceValue: 166800,
-    transportCost: 4930,
-    mandiCess: 2502,
-    finalAmount: 171730,
-    mandiOrDeliveryLocation: 'Indore APMC Processing Bay #4',
-    createdDate: 'May 14, 2026, 09:30 AM',
-    paymentStatus: 'Payment Successful',
-    transactionStatus: 'In Transit',
-    timeline: [
-      { stage: 'offer_accepted', label: 'Offer Accepted by Farmer', labelHi: 'ऑफ़र स्वीकार किया गया', timestamp: 'May 14, 09:30 AM', completed: true, description: 'Agreed price ₹2,780/qtl for 60 quintals.' },
-      { stage: 'transaction_created', label: 'Transaction Contract Binding', labelHi: 'अनुबंध तैयार', timestamp: 'May 14, 09:32 AM', completed: true, description: 'Electronic trade contract generated.' },
-      { stage: 'escrow_funded', label: 'Buyer Escrow Funded', labelHi: 'एस्क्रो में राशि जमा', timestamp: 'May 14, 10:15 AM', completed: true, description: '₹1,71,730 verified in FarmNexus ICICI Escrow Account.' },
-      { stage: 'in_transit', label: 'Produce Dispatched & In Transit', labelHi: 'उपज रास्ते में है', timestamp: 'May 14, 02:00 PM', completed: true, description: 'Carrier Vehicle MP-09-GH-4120 dispatched from Sirali.' },
-      { stage: 'delivered', label: 'Delivery & Gate Assay Check', labelHi: 'डिलिवरी व गुणवत्ता जांच', timestamp: 'Pending', completed: false, description: 'Produce arrival at Indore processing dock.' },
-      { stage: 'completed', label: 'Escrow Settlement to Farmer SBI', labelHi: 'किसान खाते में भुगतान', timestamp: 'Pending', completed: false, description: 'Auto-release upon digital delivery receipt.' },
-    ],
-    paymentDetails: {
-      method: 'e-NWR Escrow',
-      transactionRef: 'ESC-ICICI-8492019',
-      payerVpa: 'agrocorp.procure@icici',
-      paidAt: 'May 14, 2026, 10:15 AM',
-      escrowRef: 'ESC-TRX-948201',
-    },
-  },
-  {
-    id: 'TXN-2026-8812',
-    lotId: 'LOT-AGN-092',
-    offerId: 'OFF-8951',
-    farmerId: 'FRM-MP-091',
-    farmerName: 'Ramesh Patel',
-    farmerLocation: 'Sirali Farm Godown #2, Harda, MP',
-    farmerPhone: '+91 98261 44520',
-    buyerId: 'BUY-ITC-02',
-    buyerName: 'Vijay Deshmukh',
-    buyerOrganization: 'ITC Choupal Saagar Rural Hub',
-    buyerLocation: 'Timarni Collection Center, Harda',
-    crop: 'Soybean (Yellow)',
-    cropHi: 'सोयाबीन',
-    variety: 'JS-335 Certified Seed',
-    quantityQtl: 95,
-    unit: 'Quintal',
-    agreedPricePerQtl: 4920,
-    produceValue: 467400,
-    transportCost: 0, // Farm-gate buyer pickup
-    mandiCess: 7011,
-    finalAmount: 467400,
-    mandiOrDeliveryLocation: 'Farm-gate pickup Sirali',
-    createdDate: 'May 12, 2026, 11:00 AM',
-    paymentStatus: 'Payment Successful',
-    transactionStatus: 'Completed',
-    timeline: [
-      { stage: 'offer_accepted', label: 'Offer Accepted by Farmer', timestamp: 'May 12, 11:00 AM', completed: true, description: 'Agreed price ₹4,920/qtl for 95 quintals.' },
-      { stage: 'transaction_created', label: 'Transaction Contract Binding', timestamp: 'May 12, 11:05 AM', completed: true, description: 'Electronic trade contract generated.' },
-      { stage: 'escrow_funded', label: 'Buyer Escrow Funded', timestamp: 'May 12, 11:30 AM', completed: true, description: '₹4,67,400 secured in escrow.' },
-      { stage: 'in_transit', label: 'Farm-gate Weighing & Loading', timestamp: 'May 12, 03:00 PM', completed: true, description: 'Loaded into ITC collection truck.' },
-      { stage: 'delivered', label: 'Delivered at Collection Center', timestamp: 'May 12, 05:30 PM', completed: true, description: 'Moisture 10.1% verified.' },
-      { stage: 'completed', label: 'Funds Disbursed to Farmer SBI', timestamp: 'May 12, 06:15 PM', completed: true, description: 'Direct transfer to SBI •••• 8842.' },
-    ],
-    paymentDetails: {
-      method: 'UPI',
-      transactionRef: 'UPI-SBI-9948201',
-      payerVpa: 'itc.choupal@hdfcbank',
-      paidAt: 'May 12, 2026, 06:15 PM',
-      escrowRef: 'ESC-TRX-224810',
-    },
-  },
-  {
-    id: 'TXN-2026-7734',
-    lotId: 'LOT-AGN-074',
-    offerId: 'OFF-8952',
-    farmerId: 'FRM-MP-091',
-    farmerName: 'Ramesh Patel',
-    farmerLocation: 'Sirali Farm Godown #2, Harda, MP',
-    farmerPhone: '+91 98261 44520',
-    buyerId: 'BUY-MK-03',
-    buyerName: 'Rajesh Mehra',
-    buyerOrganization: 'Mahakosh Agri Exports Ltd.',
-    buyerLocation: 'Hoshangabad Mandi Yard, MP',
-    crop: 'Basmati Rice (Pusa 1121)',
-    cropHi: 'बासमती चावल',
-    variety: 'Pusa 1121 Export Grade',
-    quantityQtl: 50,
-    unit: 'Quintal',
-    agreedPricePerQtl: 4300,
-    produceValue: 215000,
-    transportCost: 3200,
-    mandiCess: 3225,
-    finalAmount: 218200,
-    mandiOrDeliveryLocation: 'Hoshangabad APMC Export Terminal',
-    createdDate: 'May 14, 2026, 08:45 AM',
-    paymentStatus: 'Payment Pending',
-    transactionStatus: 'Payment Pending',
-    timeline: [
-      { stage: 'offer_accepted', label: 'Offer Accepted by Farmer', timestamp: 'May 14, 08:45 AM', completed: true, description: 'Agreed price ₹4,300/qtl for 50 quintals.' },
-      { stage: 'transaction_created', label: 'Transaction Contract Binding', timestamp: 'May 14, 08:46 AM', completed: true, description: 'Electronic trade contract generated.' },
-      { stage: 'escrow_funded', label: 'Buyer Escrow Deposit', timestamp: 'Awaiting Buyer Action', completed: false, description: 'Buyer must deposit ₹2,18,200 to secure deal.' },
-      { stage: 'in_transit', label: 'Carrier Dispatch & Transit', timestamp: 'Pending Escrow', completed: false, description: 'Carrier vehicle will be scheduled.' },
-      { stage: 'delivered', label: 'Delivery & Gate Inspection', timestamp: 'Pending', completed: false, description: 'Delivery to Hoshangabad APMC.' },
-      { stage: 'completed', label: 'Settlement to Farmer Account', timestamp: 'Pending', completed: false, description: 'Direct payout to farmer.' },
-    ],
-  },
-]
-
-const initialNotifications: NotificationItem[] = [
-  {
-    id: 'NOTIF-01',
-    type: 'offer',
-    title: 'New High Offer Received!',
-    titleHi: 'नया उच्च ऑफ़र प्राप्त हुआ!',
-    message: 'AgroCorp Direct offered ₹2,780/qtl for your Wheat Lot (LOT-2026-081) — ₹30 above your expected price.',
-    messageHi: 'AgroCorp Direct ने आपके गेहूं लॉट (LOT-2026-081) के लिए ₹2,780/क्विंटल की पेशकश की है।',
-    timeAgo: '15 mins ago',
-    read: false,
-    link: '/farmer/offers',
-  },
-  {
-    id: 'NOTIF-02',
-    type: 'price',
-    title: 'Indore Mandi Price Surge',
-    titleHi: 'इंदौर मंडी में भाव उछाल',
-    message: 'Wheat (Sharbati) prices climbed +3.4% in Indore Mandi today. Modal price is now ₹2,840/qtl.',
-    messageHi: 'इंदौर मंडी में आज गेहूं (शरबती) के भाव +3.4% चढ़े। मॉडल भाव अब ₹2,840/क्विंटल है।',
-    timeAgo: '1 hour ago',
-    read: false,
-    link: '/farmer/market-intelligence',
-  },
-  {
-    id: 'NOTIF-03',
-    type: 'match',
-    title: 'New Verified Buyer Match',
-    titleHi: 'नया सत्यापित खरीदार मिलान',
-    message: 'ITC Choupal Saagar matched 96% with your 95 qtl Soybean lot with zero deduction guarantee.',
-    messageHi: 'ITC चौपाल सागर ने आपके 95 क्विंटल सोयाबीन लॉट से 96% मिलान किया है।',
-    timeAgo: '3 hours ago',
-    read: false,
-    link: '/farmer/buyers',
-  },
-  {
-    id: 'NOTIF-04',
-    type: 'payment',
-    title: 'Payout Processing Notice',
-    titleHi: 'भुगतान प्रोसेसिंग सूचना',
-    message: '₹1,62,000 for Wheat lot (OFF-8950) is in Escrow processing. Expected credit by 5:00 PM today.',
-    messageHi: 'गेहूं लॉट (OFF-8950) के लिए ₹1,62,000 एस्क्रो में है। आज शाम 5:00 बजे तक खाते में पहुंचने की उम्मीद।',
-    timeAgo: '4 hours ago',
-    read: true,
-    link: '/farmer/payments',
-  },
-]
-
-const initialUsers: UserRecord[] = [
-  {
-    id: 'USR-FRM-01',
-    name: 'Ramesh Patel',
-    email: 'ramesh.patel@kisanmail.in',
-    phone: '+91 98261 44520',
-    userType: 'Farmer',
-    location: 'Sirali, Harda',
-    district: 'Harda',
-    state: 'Madhya Pradesh',
-    registeredDate: 'Oct 14, 2024',
-    status: 'Active',
-    kycVerified: true,
-    organization: 'Narmada Valley Kisan Producer Co.',
-    lotsCount: 3,
-    transactionsCount: 3,
-    totalVolumeRs: 850930,
-  },
-  {
-    id: 'USR-FRM-02',
-    name: 'Suresh Choudhary',
-    email: 'suresh.choudhary@agrimail.in',
-    phone: '+91 94250 88120',
-    userType: 'Farmer',
-    location: 'Barnagar, Ujjain',
-    district: 'Ujjain',
-    state: 'Madhya Pradesh',
-    registeredDate: 'Nov 02, 2024',
-    status: 'Active',
-    kycVerified: true,
-    organization: 'Malwa Organic FPO Ltd.',
-    lotsCount: 2,
-    transactionsCount: 1,
-    totalVolumeRs: 280000,
-  },
-  {
-    id: 'USR-FRM-03',
-    name: 'Kailash Solanki',
-    email: 'kailash.solanki@farmernet.org',
-    phone: '+91 98930 11492',
-    userType: 'Farmer',
-    location: 'Ashta, Sehore',
-    district: 'Sehore',
-    state: 'Madhya Pradesh',
-    registeredDate: 'Dec 18, 2024',
-    status: 'Pending Verification',
-    kycVerified: false,
-    organization: 'Parbati Kisan Sangathan',
-    lotsCount: 1,
-    transactionsCount: 0,
-    totalVolumeRs: 0,
-  },
-  {
-    id: 'USR-BUY-01',
-    name: 'Sunil Aggarwal',
-    email: 'procurement@agrocorp.com',
-    phone: '+91 731 448900',
-    userType: 'Buyer',
-    location: 'Indore Processing Terminal, AB Road',
-    district: 'Indore',
-    state: 'Madhya Pradesh',
-    registeredDate: 'Aug 20, 2024',
-    status: 'Active',
-    kycVerified: true,
-    organization: 'AgroCorp Direct Procurement Ltd.',
-    lotsCount: 0,
-    transactionsCount: 5,
-    totalVolumeRs: 1240000,
-  },
-  {
-    id: 'USR-BUY-02',
-    name: 'Vijay Deshmukh',
-    email: 'procure.mp@itc.in',
-    phone: '+91 7577 229100',
-    userType: 'Buyer',
-    location: 'ITC Choupal Saagar Hub, Timarni',
-    district: 'Harda',
-    state: 'Madhya Pradesh',
-    registeredDate: 'Sep 05, 2024',
-    status: 'Active',
-    kycVerified: true,
-    organization: 'ITC Choupal Saagar Rural Hub',
-    lotsCount: 0,
-    transactionsCount: 8,
-    totalVolumeRs: 2480000,
-  },
-  {
-    id: 'USR-BUY-03',
-    name: 'Rajesh Mehra',
-    email: 'exports@mahakoshagro.in',
-    phone: '+91 7574 255102',
-    userType: 'Buyer',
-    location: 'Itarsi-Bhopal Export Hub',
-    district: 'Narmadapuram',
-    state: 'Madhya Pradesh',
-    registeredDate: 'Jan 10, 2025',
-    status: 'Active',
-    kycVerified: true,
-    organization: 'Mahakosh Agri Exports Ltd.',
-    lotsCount: 0,
-    transactionsCount: 2,
-    totalVolumeRs: 436400,
-  },
-  {
-    id: 'USR-BUY-04',
-    name: 'Anand Rathi',
-    email: 'anand@malwabiotraders.com',
-    phone: '+91 734 258900',
-    userType: 'Buyer',
-    location: 'Industrial Area, Ujjain',
-    district: 'Ujjain',
-    state: 'Madhya Pradesh',
-    registeredDate: 'Feb 15, 2025',
-    status: 'Pending Verification',
-    kycVerified: false,
-    organization: 'Malwa BioAgro Traders',
-    lotsCount: 0,
-    transactionsCount: 0,
-    totalVolumeRs: 0,
-  },
-  {
-    id: 'USR-ADM-01',
-    name: 'FarmNexus Operations Desk',
-    email: 'admin@farmnexus.mp.gov.in',
-    phone: '+91 755 244890',
-    userType: 'Admin',
-    location: 'State Agriculture Directorate, Bhopal',
-    district: 'Bhopal',
-    state: 'Madhya Pradesh',
-    registeredDate: 'Jan 01, 2024',
-    status: 'Active',
-    kycVerified: true,
-    organization: 'FarmNexus State Directorate',
-  },
-]
-
-const initialAuditLogs: AuditLog[] = [
-  {
-    id: 'LOG-101',
-    action: 'Market Price Updated',
-    adminUser: 'Admin Ops Desk',
-    targetType: 'MarketPrice',
-    targetId: 'Indore APMC - Wheat (Sharbati)',
-    timestamp: 'Today, 10:30 AM',
-    details: 'Modal price revised to ₹2,840/qtl based on AGMARKNET mandi arrival feed.',
-  },
-  {
-    id: 'LOG-102',
-    action: 'User KYC Verified',
-    adminUser: 'Admin Ops Desk',
-    targetType: 'User',
-    targetId: 'USR-BUY-01 (AgroCorp Direct)',
-    timestamp: 'Yesterday, 04:15 PM',
-    details: 'GSTIN 23AAACA1234F1Z8 and bank mandate verified with ICICI Bank.',
-  },
-  {
-    id: 'LOG-103',
-    action: 'Escrow Vault Audit',
-    adminUser: 'Admin Ops Desk',
-    targetType: 'Transaction',
-    targetId: 'TXN-2026-9041',
-    timestamp: 'May 14, 10:20 AM',
-    details: '₹1,71,730 verified locked in ICICI escrow ledger.',
-  },
-  {
-    id: 'LOG-104',
-    action: 'Lot Quality Inspected',
-    adminUser: 'Admin Ops Desk',
-    targetType: 'Lot',
-    targetId: 'LOT-AGN-081',
-    timestamp: 'May 13, 03:45 PM',
-    details: 'Quality grade Grade A (Export) verified by Narmada FPO assay lab.',
-  },
 ]
 
 const DashboardContext = createContext<DashboardContextType | undefined>(undefined)
 
 export function DashboardProvider({ children }: { children: ReactNode }) {
   const [lang, setLang] = useState<'en' | 'hi'>('en')
-  const [userRole, setUserRole] = useState<UserRole>('farmer')
-  const [profile] = useState<FarmerProfile>(initialProfile)
-  
-  // Persistent Lots state
-  const [lots, setLots] = useState<CropLot[]>(() => {
-    try {
-      const saved = localStorage.getItem('farmnexus_farmer_lots')
-      if (saved) {
-        const parsed = JSON.parse(saved)
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed
-      }
-    } catch (e) {
-      console.warn('[DashboardContext] Failed to load lots from localStorage', e)
-    }
-    return initialLots
+  const [currentUser, setCurrentUser] = useState<AuthenticatedUser | null>(null)
+  const [isLoadingAuth, setIsLoadingAuth] = useState<boolean>(true)
+  const [userRole, setUserRoleState] = useState<UserRole>('farmer')
+
+  // User-specific database records
+  const [profile, setProfile] = useState<FarmerProfile>({
+    name: 'Farmer User',
+    nameHi: 'किसान',
+    phone: '+91 98000 00000',
+    village: 'District Center',
+    district: 'Harda',
+    state: 'Madhya Pradesh',
+    pincode: '461331',
+    fpoName: 'Kisan Producer Company',
+    fpoRole: 'Member',
+    totalLandAcres: 10,
+    kycVerified: false,
+    kisanCreditCardVerified: false,
+    bankAccountMasked: 'Bank •••• 0000',
+    upiId: 'farmer@upi',
+    memberSince: '2026',
   })
 
-  // Save lots to localStorage on update
-  useEffect(() => {
-    try {
-      localStorage.setItem('farmnexus_farmer_lots', JSON.stringify(lots))
-    } catch (e) {
-      console.warn('[DashboardContext] Failed to save lots to localStorage', e)
-    }
-  }, [lots])
-
-  // Persistent Transactions state
-  const [transactions, setTransactions] = useState<FarmTransaction[]>(() => {
-    try {
-      const saved = localStorage.getItem('farmnexus_transactions')
-      if (saved) {
-        const parsed = JSON.parse(saved)
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed
-      }
-    } catch (e) {
-      console.warn('[DashboardContext] Failed to load transactions from localStorage', e)
-    }
-    return initialFarmTransactions
-  })
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('farmnexus_transactions', JSON.stringify(transactions))
-    } catch (e) {
-      console.warn('[DashboardContext] Failed to save transactions to localStorage', e)
-    }
-  }, [transactions])
-
-  // Persistent Users state
-  const [users, setUsers] = useState<UserRecord[]>(() => {
-    try {
-      const saved = localStorage.getItem('farmnexus_users')
-      if (saved) {
-        const parsed = JSON.parse(saved)
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed
-      }
-    } catch (e) {
-      console.warn('[DashboardContext] Failed to load users from localStorage', e)
-    }
-    return initialUsers
-  })
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('farmnexus_users', JSON.stringify(users))
-    } catch (e) {
-      console.warn('[DashboardContext] Failed to save users to localStorage', e)
-    }
-  }, [users])
-
-  // Persistent Audit Logs state
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => {
-    try {
-      const saved = localStorage.getItem('farmnexus_audit_logs')
-      if (saved) {
-        const parsed = JSON.parse(saved)
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed
-      }
-    } catch (e) {
-      console.warn('[DashboardContext] Failed to load audit logs from localStorage', e)
-    }
-    return initialAuditLogs
-  })
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('farmnexus_audit_logs', JSON.stringify(auditLogs))
-    } catch (e) {
-      console.warn('[DashboardContext] Failed to save audit logs to localStorage', e)
-    }
-  }, [auditLogs])
-
-  const [offers, setOffers] = useState<Offer[]>(initialOffers)
-  const [payments, setPayments] = useState<PaymentTransaction[]>(initialPayments)
-  const [notifications, setNotifications] = useState<NotificationItem[]>(initialNotifications)
-  const [marketData, setMarketData] = useState<MarketPriceData[]>(initialMarketData)
-  const [buyerMatches] = useState<BuyerMatch[]>(initialBuyerMatches)
-
-  // Buyer Requirement & Profile State
-  const [buyerProfile] = useState<BuyerProfile>({
-    name: 'Sunil Aggarwal',
-    company: 'AgroCorp Direct Procurement Ltd.',
-    gstNumber: '23AAACA1234F1Z8',
-    deliveryLocation: 'Indore Processing Terminal, MP',
-    verified: true,
-    reliabilityScore: 4.95,
+  const [buyerProfile, setBuyerProfile] = useState<BuyerProfile>({
+    name: 'Buyer Representative',
+    company: 'Procurement Corp',
+    gstNumber: '23AAACA0000A1Z0',
+    deliveryLocation: 'Processing Hub',
+    verified: false,
+    reliabilityScore: 4.8,
   })
 
   const [buyerRequirement, setBuyerRequirement] = useState<BuyerRequirement>({
     requiredCrop: 'Wheat (Sharbati)',
     requiredQuantityQtl: 100,
     preferredGrade: 'Grade A',
-    preferredLocation: 'Madhya Pradesh',
-    maxPrice: 2900,
+    preferredLocation: 'Harda, Madhya Pradesh',
+    maxPrice: 2850,
   })
 
-  const updateBuyerRequirement = (req: Partial<BuyerRequirement>) => {
-    setBuyerRequirement(prev => ({ ...prev, ...req }))
-  }
-
-  // Live Backend Data Synchronization
-  useEffect(() => {
-    async function syncWithBackend() {
-      try {
-        // Ensure authentication token exists
-        let token = localStorage.getItem('farmnexus_jwt_token')
-        if (!token) {
-          try {
-            const loginRes = await authApi.login('ramesh@farmnexus.in', 'password123')
-            if (loginRes.data?.token) {
-              localStorage.setItem('farmnexus_jwt_token', loginRes.data.token)
-              token = loginRes.data.token
-            }
-          } catch (e) {
-            // Auto-login fallback
-          }
-        }
-
-        // Fetch fresh lots from PostgreSQL/Express backend
-        const lotsRes = await lotApi.getAll()
-        if (lotsRes.data && Array.isArray(lotsRes.data) && lotsRes.data.length > 0) {
-          // Map backend lot models to frontend format
-          const mappedLots: CropLot[] = lotsRes.data.map((l: any) => ({
-            id: l.id,
-            crop: l.crop,
-            cropHi: l.crop_hi,
-            category: l.category,
-            variety: l.variety,
-            quantityQtl: l.quantity_qtl,
-            unit: l.unit || 'Quintal',
-            grade: l.grade,
-            visualQuality: l.quality?.visual_quality || 'Good',
-            damageLevel: l.quality?.damage_level || 'None',
-            grainSize: l.quality?.grain_size || 'Uniform Bold',
-            moisturePercent: l.quality?.moisture_percent,
-            foreignMatterPercent: l.quality?.foreign_matter_percent,
-            damagedGrainPercent: l.quality?.damaged_grain_percent,
-            qualityNotes: l.quality?.notes,
-            expectedPrice: l.expected_price,
-            minAcceptablePrice: l.min_acceptable_price,
-            marketReferencePrice: l.market_reference_price,
-            harvestDate: 'May 2026',
-            location: l.location,
-            pickupLocation: l.pickup_location,
-            status: l.status,
-            createdAt: 'May 2026',
-            matchedBuyersCount: l.active_offers_count ? l.active_offers_count + 3 : 4,
-            activeOffersCount: l.active_offers_count || 0,
-            highestOffer: l.highest_offer || l.expected_price,
-          }))
-          setLots(mappedLots)
-        }
-      } catch (err) {
-        console.warn('[DashboardContext] Backend sync silent fallback active', err)
-      }
-    }
-
-    syncWithBackend()
-  }, [])
+  const [lots, setLots] = useState<CropLot[]>([])
+  const [offers, setOffers] = useState<Offer[]>([])
+  const [transactions, setTransactions] = useState<FarmTransaction[]>([])
+  const [payments, setPayments] = useState<PaymentTransaction[]>([])
+  const [users, setUsers] = useState<UserRecord[]>([])
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([])
+  const [notifications, setNotifications] = useState<NotificationItem[]>([])
+  const [marketData, setMarketData] = useState<MarketPriceData[]>(initialMarketData)
+  const [buyerMatches] = useState<BuyerMatch[]>(initialBuyerMatches)
 
   const [isListModalOpen, setIsListModalOpen] = useState(false)
   const [counterModalOffer, setCounterModalOffer] = useState<Offer | null>(null)
 
-  const getTransactionById = (transactionId: string): FarmTransaction | undefined => {
-    return transactions.find(t => t.id === transactionId)
+  const setUserRole = (role: UserRole) => {
+    setUserRoleState(role)
   }
 
-  const updateTransactionPayment = (
-    transactionId: string,
-    paymentStatus: TransactionPaymentStatus,
-    transactionStatus: TransactionLifecycleStatus,
-    details?: FarmTransaction['paymentDetails']
-  ) => {
-    setTransactions(prev =>
-      prev.map(t => {
-        if (t.id === transactionId) {
-          const updatedTimeline = t.timeline.map(tl => {
-            if (tl.stage === 'escrow_funded' && (paymentStatus === 'Payment Successful' || transactionStatus === 'Payment Completed')) {
-              return { ...tl, completed: true, timestamp: 'Just now' }
-            }
-            return tl
-          })
+  // Fetch Authenticated User's own data from PostgreSQL backend
+  const loadUserData = async (user: AuthenticatedUser) => {
+    try {
+      const roleStr = user.user_type.toLowerCase() as UserRole
+      setUserRoleState(roleStr)
 
-          return {
-            ...t,
-            paymentStatus,
-            transactionStatus,
-            paymentDetails: details || t.paymentDetails,
-            timeline: updatedTimeline,
-          }
+      // 1. Set Profile state
+      if (user.user_type === 'FARMER') {
+        setProfile({
+          name: user.name,
+          nameHi: user.name,
+          phone: user.phone || '+91 98000 00000',
+          village: user.location || 'Local Village',
+          district: user.district || 'Harda',
+          state: user.state || 'Madhya Pradesh',
+          pincode: '461331',
+          fpoName: user.organization || 'Kisan Producer Company',
+          fpoRole: 'Lead Member',
+          totalLandAcres: 12,
+          kycVerified: user.kyc_verified,
+          kisanCreditCardVerified: user.kyc_verified,
+          bankAccountMasked: 'SBI •••• 8842',
+          upiId: `${user.name.toLowerCase().replace(/\s+/g, '.')}@upi`,
+          memberSince: '2026',
+        })
+
+        // Fetch Farmer's Lots
+        const lotsRes = await lotApi.getMyLots()
+        if (lotsRes.data && Array.isArray(lotsRes.data)) {
+          setLots(lotsRes.data.map(mapBackendLot))
         }
-        return t
-      })
-    )
 
-    // Notification
-    const notif: NotificationItem = {
-      id: `NOTIF-${Date.now()}`,
-      type: 'payment',
-      title: paymentStatus === 'Payment Successful' ? 'Escrow Deposit Verified!' : 'Payment Update',
-      titleHi: paymentStatus === 'Payment Successful' ? 'एस्क्रो में भुगतान प्राप्त!' : 'भुगतान अपडेट',
-      message: `Transaction ${transactionId} payment status updated to ${paymentStatus}.`,
-      messageHi: `लेनदेन ${transactionId} की भुगतान स्थिति अब ${paymentStatus} है।`,
-      timeAgo: 'Just now',
-      read: false,
-      link: `/farmer/transactions`,
-    }
-    setNotifications(prev => [notif, ...prev])
-  }
-
-  const advanceTransactionLifecycle = (
-    transactionId: string,
-    newStatus: TransactionLifecycleStatus
-  ) => {
-    setTransactions(prev =>
-      prev.map(t => {
-        if (t.id === transactionId) {
-          const updatedTimeline = t.timeline.map(tl => {
-            if (newStatus === 'In Transit' && tl.stage === 'in_transit') {
-              return { ...tl, completed: true, timestamp: 'Just now' }
-            }
-            if (newStatus === 'Delivered' && (tl.stage === 'in_transit' || tl.stage === 'delivered')) {
-              return { ...tl, completed: true, timestamp: 'Just now' }
-            }
-            if (newStatus === 'Completed') {
-              return { ...tl, completed: true, timestamp: 'Just now' }
-            }
-            return tl
-          })
-
-          return {
-            ...t,
-            transactionStatus: newStatus,
-            timeline: updatedTimeline,
-          }
+        // Fetch Farmer's Received Offers
+        const offersRes = await offerApi.getReceivedOffers()
+        if (offersRes.data && Array.isArray(offersRes.data)) {
+          setOffers(offersRes.data.map(mapBackendOffer))
         }
-        return t
-      })
-    )
-  }
+      } else if (user.user_type === 'BUYER') {
+        setBuyerProfile({
+          name: user.name,
+          company: user.organization || `${user.name} Trading Co.`,
+          gstNumber: '23AAACA1234F1Z8',
+          deliveryLocation: user.location || 'Central Processing Hub',
+          verified: user.kyc_verified,
+          reliabilityScore: 4.9,
+        })
 
-  const toggleLang = () => setLang(prev => (prev === 'en' ? 'hi' : 'en'))
-
-  const calculateLotMatchScore = (lot: CropLot, req = buyerRequirement): MatchScoreResult => {
-    let score = 0
-    const matchReasons: string[] = []
-
-    // 1. Crop Match (40 pts)
-    if (req.requiredCrop === 'All') {
-      score += 40
-      matchReasons.push('General commodity match')
-    } else if (
-      lot.crop.toLowerCase().includes(req.requiredCrop.toLowerCase()) ||
-      req.requiredCrop.toLowerCase().includes(lot.crop.toLowerCase())
-    ) {
-      score += 40
-      matchReasons.push(`Exact crop match (${lot.crop})`)
-    } else if (lot.category && lot.category.toLowerCase().includes('grain') && req.requiredCrop.toLowerCase().includes('wheat')) {
-      score += 25
-      matchReasons.push('Related grain group')
-    } else {
-      score += 10
-    }
-
-    // 2. Quantity Suitability (25 pts)
-    if (lot.quantityQtl >= req.requiredQuantityQtl * 0.8 && lot.quantityQtl <= req.requiredQuantityQtl * 1.5) {
-      score += 25
-      matchReasons.push(`Target volume (${lot.quantityQtl} qtl suitable for ${req.requiredQuantityQtl} qtl demand)`)
-    } else if (lot.quantityQtl >= req.requiredQuantityQtl * 0.5) {
-      score += 15
-      matchReasons.push(`Volume matches partial procurement (${lot.quantityQtl} qtl)`)
-    } else {
-      score += 5
-    }
-
-    // 3. Quality Grade & Attributes Match (20 pts + bonus/penalties)
-    if (req.preferredGrade === 'All') {
-      if (lot.grade === 'Grade A (Export)' || lot.grade === 'Grade A') {
-        score += 20
-        matchReasons.push(`Certified ${lot.grade} quality`)
-      } else if (lot.grade === 'Grade B') {
-        score += 16
-        matchReasons.push('Commercial Grade B quality')
-      } else {
-        score += 12
-        matchReasons.push('Standard Grade C produce')
-      }
-    } else if (req.preferredGrade === 'Grade A' || req.preferredGrade === 'Grade A (Export)') {
-      if (lot.grade === 'Grade A (Export)' || lot.grade === 'Grade A') {
-        score += 20
-        matchReasons.push(`Meets preferred ${lot.grade} specification`)
-      } else if (lot.grade === 'Grade B') {
-        score += 10
-        matchReasons.push(`Grade B (below preferred ${req.preferredGrade})`)
-      } else {
-        score += 4
-        matchReasons.push('Grade C (below specification)')
-      }
-    } else if (req.preferredGrade === 'Grade B') {
-      if (lot.grade === 'Grade A (Export)' || lot.grade === 'Grade A') {
-        score += 20
-        matchReasons.push('Exceeds target with Grade A quality')
-      } else if (lot.grade === 'Grade B') {
-        score += 20
-        matchReasons.push('Matches Grade B specification')
-      } else {
-        score += 8
-      }
-    } else {
-      score += 15
-    }
-
-    // Visual quality & damage scoring
-    if (lot.visualQuality === 'Excellent') {
-      score += 3
-      matchReasons.push('Excellent visual appearance & luster')
-    } else if (lot.visualQuality === 'Good') {
-      score += 1
-    }
-
-    if (lot.damageLevel === 'None') {
-      score += 2
-      matchReasons.push('Zero detected grain damage')
-    } else if (lot.damageLevel === 'High') {
-      score -= 10
-      matchReasons.push('High defect/damage level penalty')
-    }
-
-    // 4. Location Proximity (15 pts)
-    if (
-      req.preferredLocation === 'All' ||
-      lot.location.toLowerCase().includes(req.preferredLocation.toLowerCase()) ||
-      (lot.state && lot.state.toLowerCase().includes(req.preferredLocation.toLowerCase()))
-    ) {
-      score += 15
-      matchReasons.push(`Region match (${lot.state || lot.location})`)
-    } else {
-      score += 5
-    }
-
-    // Budget alignment reason
-    if (lot.expectedPrice <= req.maxPrice) {
-      matchReasons.push(`Within price budget (₹${lot.expectedPrice.toLocaleString('en-IN')} <= max ₹${req.maxPrice.toLocaleString('en-IN')})`)
-    }
-
-    const finalScore = Math.min(100, Math.max(15, score))
-    return {
-      score: finalScore,
-      matchReasons,
-      isHighMatch: finalScore >= 75,
-    }
-  }
-
-  const makeBuyerOffer = (offerData: {
-    lotId: string
-    offeredPrice: number
-    quantityQtl: number
-    paymentTerms?: string
-    message?: string
-  }): string => {
-    const lot = lots.find(l => l.id === offerData.lotId)
-    const newOfferId = `OFF-${Math.floor(Math.random() * 9000 + 1000)}`
-    const totalAmount = offerData.offeredPrice * offerData.quantityQtl
-
-    const newOffer: Offer = {
-      id: newOfferId,
-      lotId: offerData.lotId,
-      lotTitle: lot ? `${lot.crop} • ${offerData.quantityQtl} qtl` : `Produce Lot ${offerData.lotId}`,
-      buyerId: 'BUY-ME-01',
-      buyerName: buyerProfile.name,
-      buyerCompany: buyerProfile.company,
-      buyerReliability: buyerProfile.reliabilityScore,
-      buyerVerified: buyerProfile.verified,
-      offeredPrice: offerData.offeredPrice,
-      lotExpectedPrice: lot ? lot.expectedPrice : offerData.offeredPrice,
-      quantityQtl: offerData.quantityQtl,
-      totalAmount,
-      expiresInHours: 48,
-      status: 'Pending',
-      createdDate: 'Just now',
-      paymentTerms: offerData.paymentTerms || 'e-NWR Escrow auto-release on gate receipt',
-      pickupLocation: lot ? lot.location : 'Farm-gate Pickup',
-    }
-
-    setOffers(prev => [newOffer, ...prev])
-
-    // Dispatch to backend API
-    offerApi.create({
-      lot_id: offerData.lotId,
-      offered_price: offerData.offeredPrice,
-      quantity_qtl: offerData.quantityQtl,
-      payment_terms: offerData.paymentTerms,
-      message: offerData.message,
-    }).catch(e => console.warn('[BackendSync] offerApi.create fallback', e))
-
-    // Update lot activeOffersCount and highestOffer
-    setLots(prev =>
-      prev.map(l => {
-        if (l.id === offerData.lotId) {
-          const currentHighest = l.highestOffer || 0
-          return {
-            ...l,
-            activeOffersCount: (l.activeOffersCount || 0) + 1,
-            highestOffer: Math.max(currentHighest, offerData.offeredPrice),
+        // Fetch Buyer's Requirements
+        try {
+          const reqRes = await matchingApi.getRequirements()
+          if (reqRes.data) {
+            setBuyerRequirement({
+              requiredCrop: reqRes.data.crop || 'Wheat (Sharbati)',
+              requiredQuantityQtl: Number(reqRes.data.quantity_qtl) || 100,
+              preferredGrade: reqRes.data.preferred_grade || 'Grade A',
+              preferredLocation: reqRes.data.location || user.location || 'Harda',
+              maxPrice: Number(reqRes.data.max_price) || 2850,
+            })
           }
+        } catch {}
+
+        // Fetch Buyer's Placed Offers
+        const offersRes = await offerApi.getMyOffers()
+        if (offersRes.data && Array.isArray(offersRes.data)) {
+          setOffers(offersRes.data.map(mapBackendOffer))
         }
-        return l
-      })
-    )
 
-    // Farmer notification
-    const notif: NotificationItem = {
-      id: `NOTIF-${Date.now()}`,
-      type: 'offer',
-      title: 'New Bid Received for Your Lot!',
-      titleHi: 'आपके लॉट के लिए नया ऑफ़र प्राप्त हुआ!',
-      message: `${buyerProfile.company} offered ₹${offerData.offeredPrice.toLocaleString('en-IN')}/qtl for ${lot ? lot.crop : offerData.lotId} (${offerData.quantityQtl} qtl).`,
-      messageHi: `${buyerProfile.company} ने ${offerData.quantityQtl} क्विंटल के लिए ₹${offerData.offeredPrice}/क्विंटल की बोली लगाई है।`,
-      timeAgo: 'Just now',
-      read: false,
-      link: '/farmer/offers',
+        // Fetch Public Lots for Buyer Marketplace
+        const publicLotsRes = await lotApi.getAll()
+        if (publicLotsRes.data && Array.isArray(publicLotsRes.data)) {
+          setLots(publicLotsRes.data.map(mapBackendLot))
+        }
+      } else if (user.user_type === 'ADMIN') {
+        // Fetch Admin Users & Logs
+        const usersRes = await adminApi.getUsers()
+        if (usersRes.data && Array.isArray(usersRes.data)) {
+          setUsers(usersRes.data.map(mapBackendUser))
+        }
+
+        const logsRes = await adminApi.getActivityLogs()
+        if (logsRes.data && Array.isArray(logsRes.data)) {
+          setAuditLogs(logsRes.data)
+        }
+
+        const lotsRes = await lotApi.getAll()
+        if (lotsRes.data && Array.isArray(lotsRes.data)) {
+          setLots(lotsRes.data.map(mapBackendLot))
+        }
+      }
+
+      // Fetch User's Transactions
+      const txnsRes = await transactionApi.getMyTransactions()
+      if (txnsRes.data && Array.isArray(txnsRes.data)) {
+        setTransactions(txnsRes.data.map(mapBackendTransaction))
+      }
+    } catch (err) {
+      console.warn('[DashboardContext] User data sync warning:', err)
     }
-    setNotifications(prev => [notif, ...prev])
-
-    return newOfferId
   }
 
-  const cancelBuyerOffer = (offerId: string) => {
-    setOffers(prev => prev.filter(o => o.id !== offerId))
+  // Initialize Session on App Mount
+  useEffect(() => {
+    const initAuth = async () => {
+      setIsLoadingAuth(true)
+      const token = localStorage.getItem('farmnexus_jwt_token')
+
+      if (!token) {
+        setCurrentUser(null)
+        setIsLoadingAuth(false)
+        return
+      }
+
+      try {
+        const res = await authApi.getMe()
+        if (res.data?.user) {
+          const user: AuthenticatedUser = res.data.user
+          setCurrentUser(user)
+          await loadUserData(user)
+        } else {
+          localStorage.removeItem('farmnexus_jwt_token')
+          setCurrentUser(null)
+        }
+      } catch (err) {
+        console.warn('[DashboardContext] Stored token invalid/expired.')
+        localStorage.removeItem('farmnexus_jwt_token')
+        setCurrentUser(null)
+      } finally {
+        setIsLoadingAuth(false)
+      }
+    }
+
+    initAuth()
+  }, [])
+
+  // Login Method
+  const login = async (email: string, password: string): Promise<AuthenticatedUser> => {
+    const res = await authApi.login(email, password)
+    if (!res.data?.token || !res.data?.user) {
+      throw new Error(res.message || 'Login failed.')
+    }
+
+    const token = res.data.token
+    const user: AuthenticatedUser = res.data.user
+
+    localStorage.setItem('farmnexus_jwt_token', token)
+    setCurrentUser(user)
+    await loadUserData(user)
+    return user
   }
 
-  const addLot = (lotData: Omit<CropLot, 'id' | 'createdAt' | 'matchedBuyersCount' | 'activeOffersCount'>): string => {
-    const lotNum = Math.floor(Math.random() * 900 + 100)
-    const newLotId = `LOT-AGN-${lotNum}`
-    const newLot: CropLot = {
-      ...lotData,
-      id: newLotId,
-      createdAt: 'Just now',
-      matchedBuyersCount: lotData.status === 'Active' ? Math.floor(Math.random() * 4 + 2) : 0,
-      activeOffersCount: 0,
-      isLocalPrototype: true,
+  // Register Method
+  const register = async (payload: any): Promise<AuthenticatedUser> => {
+    const res = await authApi.register(payload)
+    if (!res.data?.token || !res.data?.user) {
+      throw new Error(res.message || 'Registration failed.')
     }
-    setLots(prev => [newLot, ...prev])
 
-    // Dispatch to backend API
-    lotApi.create({
+    const token = res.data.token
+    const user: AuthenticatedUser = res.data.user
+
+    localStorage.setItem('farmnexus_jwt_token', token)
+    setCurrentUser(user)
+    // Clear old data for brand new user
+    setLots([])
+    setOffers([])
+    setTransactions([])
+    await loadUserData(user)
+    return user
+  }
+
+  // Logout Method
+  const logout = () => {
+    localStorage.removeItem('farmnexus_jwt_token')
+    setCurrentUser(null)
+    setLots([])
+    setOffers([])
+    setTransactions([])
+    setUsers([])
+  }
+
+  // Refresh User Data Method
+  const refreshUserData = async () => {
+    if (currentUser) {
+      await loadUserData(currentUser)
+    }
+  }
+
+  // Update User Profile Method
+  const updateUserProfile = async (data: any) => {
+    const res = await authApi.updateProfile(data)
+    if (res.data?.user) {
+      setCurrentUser(res.data.user)
+      if (currentUser?.user_type === 'FARMER') {
+        setProfile(prev => ({
+          ...prev,
+          name: res.data.user.name,
+          phone: res.data.user.phone,
+          village: res.data.user.location,
+          fpoName: res.data.user.organization || prev.fpoName,
+        }))
+      } else if (currentUser?.user_type === 'BUYER') {
+        setBuyerProfile(prev => ({
+          ...prev,
+          name: res.data.user.name,
+          company: res.data.user.organization || prev.company,
+          deliveryLocation: res.data.user.location,
+        }))
+      }
+    }
+  }
+
+  // Add Produce Lot
+  const addLot = async (lotData: Omit<CropLot, 'id' | 'createdAt' | 'matchedBuyersCount' | 'activeOffersCount'>): Promise<string> => {
+    const res = await lotApi.create({
       crop: lotData.crop,
       crop_hi: lotData.cropHi,
       category: lotData.category,
@@ -1578,270 +737,202 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         foreign_matter_percent: lotData.foreignMatterPercent,
         notes: lotData.qualityNotes,
       },
-    }).catch(e => console.warn('[BackendSync] lotApi.create fallback', e))
-    
-    // Add notification
-    const notif: NotificationItem = {
-      id: `NOTIF-${Date.now()}`,
-      type: 'system',
-      title: lotData.status === 'Draft' ? 'Draft Saved Successfully' : 'Lot Published Successfully!',
-      titleHi: lotData.status === 'Draft' ? 'ड्राफ्ट सहेजा गया' : 'लॉट सफलतापूर्वक प्रकाशित!',
-      message: `${newLot.crop} (${newLot.quantityQtl} ${newLot.unit || 'qtl'}) is ${lotData.status === 'Draft' ? 'saved in your drafts' : 'now active and broadcasting to verified buyers'}.`,
-      messageHi: `${newLot.cropHi || newLot.crop} (${newLot.quantityQtl} क्विंटल) ${lotData.status === 'Draft' ? 'ड्राफ्ट में सहेजा गया' : 'अब सक्रिय है और खरीदारों को दिख रहा है'}।`,
-      timeAgo: 'Just now',
-      read: false,
-      link: '/farmer/lots',
-    }
-    setNotifications(prev => [notif, ...prev])
+    })
 
-    return newLotId
+    const createdLot = res.data ? mapBackendLot(res.data) : {
+      ...lotData,
+      id: `LOT-AGN-${Date.now().toString().slice(-3)}`,
+      createdAt: 'Just now',
+      matchedBuyersCount: 3,
+      activeOffersCount: 0,
+    }
+
+    setLots(prev => [createdLot, ...prev])
+    return createdLot.id
   }
 
-  const updateLot = (lotId: string, data: Partial<CropLot>) => {
-    setLots(prev =>
-      prev.map(lot => (lot.id === lotId ? { ...lot, ...data } : lot))
-    )
-    lotApi.update(lotId, data).catch(e => console.warn('[BackendSync] lotApi.update fallback', e))
+  const updateLot = async (lotId: string, data: Partial<CropLot>) => {
+    setLots(prev => prev.map(lot => (lot.id === lotId ? { ...lot, ...data } : lot)))
+    await lotApi.update(lotId, {
+      crop: data.crop,
+      variety: data.variety,
+      quantity_qtl: data.quantityQtl,
+      expected_price: data.expectedPrice,
+      min_acceptable_price: data.minAcceptablePrice,
+      location: data.location,
+      pickup_location: data.pickupLocation,
+      status: data.status,
+    })
+  }
+
+  const deleteLot = async (lotId: string) => {
+    setLots(prev => prev.filter(lot => lot.id !== lotId))
+    await lotApi.delete(lotId)
+  }
+
+  const updateLotStatus = (lotId: string, status: LotStatus) => {
+    updateLot(lotId, { status })
   }
 
   const publishDraftLot = (lotId: string) => {
-    setLots(prev =>
-      prev.map(lot =>
-        lot.id === lotId
-          ? {
-              ...lot,
-              status: 'Active',
-              matchedBuyersCount: Math.floor(Math.random() * 4 + 2),
-            }
-          : lot
-      )
-    )
-    lotApi.update(lotId, { status: 'Active' as any }).catch(e => console.warn('[BackendSync] publishDraftLot fallback', e))
-    const notif: NotificationItem = {
-      id: `NOTIF-${Date.now()}`,
-      type: 'system',
-      title: 'Draft Lot Published!',
-      titleHi: 'ड्राफ्ट लॉट प्रकाशित!',
-      message: `Lot ${lotId} is now active and live on the network.`,
-      messageHi: `लॉट ${lotId} अब नेटवर्क पर सक्रिय है।`,
-      timeAgo: 'Just now',
-      read: false,
-      link: '/farmer/lots',
-    }
-    setNotifications(prev => [notif, ...prev])
+    updateLot(lotId, { status: 'Active' })
   }
 
   const pauseLot = (lotId: string) => {
     const lot = lots.find(l => l.id === lotId)
     const newStatus: LotStatus = lot?.status === 'Paused' ? 'Active' : 'Paused'
-    setLots(prev =>
-      prev.map(l =>
-        l.id === lotId
-          ? { ...l, status: newStatus }
-          : l
-      )
-    )
-    lotApi.update(lotId, { status: newStatus as any }).catch(e => console.warn('[BackendSync] pauseLot fallback', e))
+    updateLot(lotId, { status: newStatus })
+  }
+
+  const flagLot = async (lotId: string, reason: string) => {
+    setLots(prev => prev.map(l => (l.id === lotId ? { ...l, status: 'Under Review' } : l)))
+    await adminApi.flagLot(lotId, reason)
+    addAuditLog('Lot Flagged for Review', 'Lot', lotId, reason)
   }
 
   const getLotById = (lotId: string): CropLot | undefined => {
     return lots.find(l => l.id === lotId)
   }
 
-  const updateLotStatus = (lotId: string, status: LotStatus) => {
-    setLots(prev => prev.map(lot => (lot.id === lotId ? { ...lot, status } : lot)))
-    lotApi.update(lotId, { status: status as any }).catch(e => console.warn('[BackendSync] updateLotStatus fallback', e))
-  }
-
-  const deleteLot = (lotId: string) => {
-    setLots(prev => prev.filter(lot => lot.id !== lotId))
-    lotApi.delete(lotId).catch(e => console.warn('[BackendSync] deleteLot fallback', e))
-  }
-
-  const acceptOffer = (offerId: string) => {
-    const targetOffer = offers.find(o => o.id === offerId)
-    if (!targetOffer) return
-
-    // Backend API dispatch
-    offerApi.accept(offerId).catch(e => console.warn('[BackendSync] offerApi.accept fallback', e))
-
-    // Update target offer to Accepted and reject competing offers for same lot
+  // Accept Offer
+  const acceptOffer = async (offerId: string) => {
+    const res = await offerApi.accept(offerId)
     setOffers(prev =>
-      prev.map(o => {
-        if (o.id === offerId) return { ...o, status: 'Accepted' }
-        if (o.lotId === targetOffer.lotId && o.status === 'Pending') {
-          return { ...o, status: 'Rejected' }
-        }
-        return o
-      })
+      prev.map(o => (o.id === offerId ? { ...o, status: 'Accepted' } : o.lotId === res.data?.offer?.lot_id ? { ...o, status: 'Rejected' } : o))
     )
-
-    // Update corresponding lot to 'Under Offer'
-    if (targetOffer.lotId) {
-      setLots(prev =>
-        prev.map(l => (l.id === targetOffer.lotId ? { ...l, status: 'Under Offer' } : l))
-      )
+    if (res.data?.transaction) {
+      setTransactions(prev => [mapBackendTransaction(res.data.transaction), ...prev])
     }
-
-    // Create a new binding FarmTransaction
-    const associatedLot = lots.find(l => l.id === targetOffer.lotId)
-    const newTxnId = `TXN-2026-${Math.floor(Math.random() * 9000 + 1000)}`
-    const produceValue = targetOffer.offeredPrice * targetOffer.quantityQtl
-    const transportCost = 4930 // Estimated multi-axle freight
-    const mandiCess = Math.round(produceValue * 0.015)
-    const finalAmount = produceValue + transportCost
-
-    const newFarmTransaction: FarmTransaction = {
-      id: newTxnId,
-      lotId: targetOffer.lotId,
-      offerId: targetOffer.id,
-      farmerId: 'FRM-MP-091',
-      farmerName: profile.name,
-      farmerLocation: associatedLot ? associatedLot.location : 'Sirali Farm Godown #2, Harda, MP',
-      farmerPhone: profile.phone,
-      buyerId: targetOffer.buyerId,
-      buyerName: targetOffer.buyerName,
-      buyerOrganization: targetOffer.buyerCompany,
-      buyerLocation: targetOffer.pickupLocation || 'Buyer Regional Terminal',
-      crop: associatedLot ? associatedLot.crop : targetOffer.lotTitle,
-      cropHi: associatedLot?.cropHi,
-      variety: associatedLot ? associatedLot.variety : 'Standard FAQ Grade',
-      quantityQtl: targetOffer.quantityQtl,
-      unit: associatedLot?.unit || 'Quintal',
-      agreedPricePerQtl: targetOffer.offeredPrice,
-      produceValue,
-      transportCost,
-      mandiCess,
-      finalAmount,
-      mandiOrDeliveryLocation: targetOffer.pickupLocation || 'Farm-gate pickup',
-      createdDate: 'Just now',
-      paymentStatus: 'Payment Pending',
-      transactionStatus: 'Payment Pending',
-      timeline: [
-        { stage: 'offer_accepted', label: 'Offer Accepted by Farmer', labelHi: 'ऑफ़र स्वीकार किया गया', timestamp: 'Just now', completed: true, description: `Agreed at ₹${targetOffer.offeredPrice.toLocaleString('en-IN')}/qtl for ${targetOffer.quantityQtl} qtl.` },
-        { stage: 'transaction_created', label: 'Binding Contract Generated', labelHi: 'अनुबंध तैयार', timestamp: 'Just now', completed: true, description: 'Trade contract signed electronically.' },
-        { stage: 'escrow_funded', label: 'Buyer Escrow Deposit', labelHi: 'एस्क्रो जमा', timestamp: 'Pending Buyer Deposit', completed: false, description: `Buyer must deposit ₹${finalAmount.toLocaleString('en-IN')} into Escrow.` },
-        { stage: 'in_transit', label: 'Carrier Dispatch & In Transit', labelHi: 'रास्ते में', timestamp: 'Pending Escrow', completed: false, description: 'Carrier pickup will be scheduled.' },
-        { stage: 'delivered', label: 'Delivery & Gate Inspection', labelHi: 'डिलिवरी व जांच', timestamp: 'Pending', completed: false, description: 'Moisture and quality assay confirmation.' },
-        { stage: 'completed', label: 'Escrow Settlement to Farmer SBI', labelHi: 'खाते में भुगतान', timestamp: 'Pending', completed: false, description: 'Auto-release to farmer linked bank account.' },
-      ],
-    }
-
-    setTransactions(prev => [newFarmTransaction, ...prev])
-
-    // Notification for Farmer
-    const notif: NotificationItem = {
-      id: `NOTIF-${Date.now()}`,
-      type: 'payment',
-      title: 'Offer Accepted — Transaction Created!',
-      titleHi: 'ऑफ़र स्वीकार — अनुबंध तैयार!',
-      message: `You accepted offer for ${targetOffer.lotTitle} at ₹${targetOffer.offeredPrice}/qtl. Transaction ${newTxnId} is now created and awaiting buyer escrow deposit.`,
-      messageHi: `आपने ₹${targetOffer.offeredPrice}/क्विंटल पर ${targetOffer.lotTitle} का ऑफ़र स्वीकार कर लिया है। लेनदेन ${newTxnId} तैयार है।`,
-      timeAgo: 'Just now',
-      read: false,
-      link: `/farmer/transactions/${newTxnId}`,
-    }
-    setNotifications(prev => [notif, ...prev])
   }
 
-  const rejectOffer = (offerId: string) => {
+  const rejectOffer = async (offerId: string) => {
+    await offerApi.reject(offerId)
     setOffers(prev => prev.map(o => (o.id === offerId ? { ...o, status: 'Rejected' } : o)))
-    offerApi.reject(offerId).catch(e => console.warn('[BackendSync] offerApi.reject fallback', e))
   }
 
-  const counterOffer = (offerId: string, counterPrice: number) => {
-    setOffers(prev =>
-      prev.map(o => (o.id === offerId ? { ...o, status: 'Countered', counterPrice } : o))
-    )
-    offerApi.counter(offerId, counterPrice).catch(e => console.warn('[BackendSync] offerApi.counter fallback', e))
+  const counterOffer = async (offerId: string, counterPrice: number) => {
+    await offerApi.counter(offerId, counterPrice)
+    setOffers(prev => prev.map(o => (o.id === offerId ? { ...o, status: 'Countered', counterPrice } : o)))
+  }
 
-    const notif: NotificationItem = {
-      id: `NOTIF-${Date.now()}`,
-      type: 'offer',
-      title: 'Counter Offer Submitted',
-      titleHi: 'काउंटर ऑफ़र प्रस्तुत किया गया',
-      message: `Counter offer of ₹${counterPrice}/qtl sent to buyer. Awaiting confirmation.`,
-      messageHi: `खरीदार को ₹${counterPrice}/क्विंटल का काउंटर ऑफ़र भेजा गया। पुष्टि की प्रतीक्षा है।`,
-      timeAgo: 'Just now',
-      read: false,
-      link: '/farmer/offers',
+  // Make Buyer Offer
+  const makeBuyerOffer = async (offerData: {
+    lotId: string
+    offeredPrice: number
+    quantityQtl: number
+    paymentTerms?: string
+    message?: string
+  }): Promise<string> => {
+    const res = await offerApi.create({
+      lot_id: offerData.lotId,
+      offered_price: offerData.offeredPrice,
+      quantity_qtl: offerData.quantityQtl,
+      payment_terms: offerData.paymentTerms,
+      message: offerData.message,
+    })
+
+    const newOffer = res.data ? mapBackendOffer(res.data) : {
+      id: `OFF-${Date.now().toString().slice(-4)}`,
+      lotId: offerData.lotId,
+      lotTitle: `Produce Lot ${offerData.lotId}`,
+      buyerId: currentUser?.id || 'BUY-01',
+      buyerName: currentUser?.name || buyerProfile.name,
+      buyerCompany: buyerProfile.company,
+      buyerReliability: buyerProfile.reliabilityScore,
+      buyerVerified: buyerProfile.verified,
+      offeredPrice: offerData.offeredPrice,
+      lotExpectedPrice: offerData.offeredPrice,
+      quantityQtl: offerData.quantityQtl,
+      totalAmount: offerData.offeredPrice * offerData.quantityQtl,
+      expiresInHours: 48,
+      status: 'Pending' as const,
+      createdDate: 'Just now',
+      paymentTerms: offerData.paymentTerms || 'e-NWR Escrow auto-release on gate receipt',
+      pickupLocation: 'Designated APMC Hub',
     }
-    setNotifications(prev => [notif, ...prev])
+
+    setOffers(prev => [newOffer, ...prev])
+    return newOffer.id
   }
 
-  const addAuditLog = (
-    action: string,
-    targetType: AuditLog['targetType'],
-    targetId: string,
-    details: string
+  const cancelBuyerOffer = (offerId: string) => {
+    setOffers(prev => prev.filter(o => o.id !== offerId))
+  }
+
+  // Update Buyer Requirement
+  const updateBuyerRequirement = async (req: Partial<BuyerRequirement>) => {
+    setBuyerRequirement(prev => ({ ...prev, ...req }))
+    try {
+      await matchingApi.updateRequirements({
+        crop: req.requiredCrop,
+        quantity_qtl: req.requiredQuantityQtl,
+        preferred_grade: req.preferredGrade,
+        location: req.preferredLocation,
+        max_price: req.maxPrice,
+      })
+    } catch {}
+  }
+
+  const getTransactionById = (transactionId: string): FarmTransaction | undefined => {
+    return transactions.find(t => t.id === transactionId)
+  }
+
+  const advanceTransactionLifecycle = async (transactionId: string, newStatus: TransactionLifecycleStatus) => {
+    const res = await transactionApi.advanceStage(transactionId, newStatus)
+    if (res.data) {
+      setTransactions(prev => prev.map(t => (t.id === transactionId ? mapBackendTransaction(res.data) : t)))
+    }
+  }
+
+  const updateTransactionPayment = (
+    transactionId: string,
+    paymentStatus: TransactionPaymentStatus,
+    transactionStatus: TransactionLifecycleStatus,
+    details?: FarmTransaction['paymentDetails']
   ) => {
-    const newLog: AuditLog = {
-      id: `LOG-${Date.now()}`,
+    setTransactions(prev =>
+      prev.map(t => (t.id === transactionId ? { ...t, paymentStatus, transactionStatus, paymentDetails: details || t.paymentDetails } : t))
+    )
+  }
+
+  const updateUserStatus = async (userId: string, status: UserRecord['status']) => {
+    if (status === 'Suspended') {
+      await adminApi.suspendUser(userId)
+    } else if (status === 'Active') {
+      await adminApi.activateUser(userId)
+    }
+    setUsers(prev => prev.map(u => (u.id === userId ? { ...u, status } : u)))
+  }
+
+  const verifyUser = async (userId: string) => {
+    await adminApi.verifyUser(userId)
+    setUsers(prev => prev.map(u => (u.id === userId ? { ...u, kycVerified: true } : u)))
+  }
+
+  const addAuditLog = (action: string, targetType: AuditLog['targetType'], targetId: string, details: string) => {
+    const log: AuditLog = {
+      id: `LOG-${Date.now().toString().slice(-4)}`,
       action,
-      adminUser: 'Admin Ops Desk',
+      adminUser: currentUser?.name || 'Admin Ops Desk',
       targetType,
       targetId,
       timestamp: 'Just now',
       details,
     }
-    setAuditLogs(prev => [newLog, ...prev])
-  }
-
-  const updateUserStatus = (userId: string, status: UserRecord['status']) => {
-    setUsers(prev =>
-      prev.map(u => (u.id === userId ? { ...u, status } : u))
-    )
-    addAuditLog('User Status Changed', 'User', userId, `Status modified to "${status}"`)
-  }
-
-  const verifyUser = (userId: string) => {
-    setUsers(prev =>
-      prev.map(u => (u.id === userId ? { ...u, kycVerified: true, status: 'Active' } : u))
-    )
-    addAuditLog('User KYC Verified', 'User', userId, 'Government KYC and trade registry verified.')
-  }
-
-  const flagLot = (lotId: string, reason: string) => {
-    setLots(prev =>
-      prev.map(l => (l.id === lotId ? { ...l, status: 'Under Review' as any } : l))
-    )
-    addAuditLog('Lot Flagged for Review', 'Lot', lotId, `Admin flagged lot: ${reason}`)
+    setAuditLogs(prev => [log, ...prev])
   }
 
   const addMarketPriceRecord = (record: Omit<MarketPriceData, 'sparkline'>) => {
-    const sparkline = [
-      record.minPrice,
-      Math.round((record.minPrice + record.modalPrice) / 2),
-      record.modalPrice - 20,
-      record.modalPrice + 10,
-      record.modalPrice,
-      record.maxPrice - 30,
-      record.modalPrice,
-    ]
-    const newRecord: MarketPriceData = {
-      ...record,
-      sparkline,
-      lastUpdated: 'Just now',
-    }
-    setMarketData(prev => [newRecord, ...prev])
-    addAuditLog('Market Price Added', 'MarketPrice', `${record.mandi} - ${record.crop}`, `Added modal price ₹${record.modalPrice}/qtl`)
+    const sparkline = [record.minPrice, record.modalPrice - 20, record.modalPrice + 10, record.modalPrice, record.maxPrice]
+    setMarketData(prev => [{ ...record, sparkline, lastUpdated: 'Just now' }, ...prev])
   }
 
   const updateMarketPriceRecord = (mandi: string, crop: string, data: Partial<MarketPriceData>) => {
-    setMarketData(prev =>
-      prev.map(item => {
-        if (item.mandi === mandi && item.crop === crop) {
-          return { ...item, ...data, lastUpdated: 'Just now' }
-        }
-        return item
-      })
-    )
-    addAuditLog('Market Price Updated', 'MarketPrice', `${mandi} - ${crop}`, `Updated price parameters`)
+    setMarketData(prev => prev.map(item => (item.mandi === mandi && item.crop === crop ? { ...item, ...data } : item)))
   }
 
   const deleteMarketPriceRecord = (mandi: string, crop: string) => {
     setMarketData(prev => prev.filter(item => !(item.mandi === mandi && item.crop === crop)))
-    addAuditLog('Market Price Removed', 'MarketPrice', `${mandi} - ${crop}`, 'Record deleted from market board')
   }
 
   const markNotificationAsRead = (id: string) => {
@@ -1852,14 +943,64 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     setNotifications(prev => prev.map(n => ({ ...n, read: true })))
   }
 
+  const toggleLang = () => setLang(prev => (prev === 'en' ? 'hi' : 'en'))
+
+  const calculateLotMatchScore = (lot: CropLot, req = buyerRequirement): MatchScoreResult => {
+    let score = 0
+    const matchReasons: string[] = []
+
+    if (req.requiredCrop === 'All' || lot.crop.toLowerCase().includes(req.requiredCrop.toLowerCase())) {
+      score += 40
+      matchReasons.push(`Exact crop match (${lot.crop})`)
+    } else {
+      score += 10
+    }
+
+    if (lot.quantityQtl >= req.requiredQuantityQtl * 0.8) {
+      score += 25
+      matchReasons.push(`Target volume matches requirement`)
+    } else {
+      score += 10
+    }
+
+    if (req.preferredGrade === 'All' || lot.grade === req.preferredGrade || lot.grade === 'Grade A (Export)') {
+      score += 20
+      matchReasons.push(`Meets ${lot.grade} specification`)
+    } else {
+      score += 8
+    }
+
+    if (req.preferredLocation === 'All' || lot.location.toLowerCase().includes(req.preferredLocation.toLowerCase())) {
+      score += 15
+      matchReasons.push(`Location matches requirement`)
+    } else {
+      score += 5
+    }
+
+    const finalScore = Math.min(100, Math.max(20, score))
+    return {
+      score: finalScore,
+      matchReasons,
+      isHighMatch: finalScore >= 75,
+    }
+  }
+
   return (
     <DashboardContext.Provider
       value={{
         lang,
         setLang,
         toggleLang,
+        currentUser,
+        isAuthenticated: Boolean(currentUser),
+        isLoadingAuth,
         userRole,
         setUserRole,
+        login,
+        register,
+        logout,
+        refreshUserData,
+        updateUserProfile,
         profile,
         buyerProfile,
         buyerRequirement,
@@ -1917,3 +1058,108 @@ export function useDashboard() {
   return context
 }
 
+// Helpers to map backend JSON to frontend models
+function mapBackendLot(l: any): CropLot {
+  return {
+    id: l.id,
+    farmerId: l.farmer_id,
+    crop: l.crop,
+    cropHi: l.crop_hi,
+    category: l.category,
+    variety: l.variety,
+    quantityQtl: Number(l.quantity_qtl) || 0,
+    unit: l.unit || 'Quintal',
+    grade: l.grade || 'Grade A',
+    visualQuality: l.quality?.visual_quality || 'Good',
+    damageLevel: l.quality?.damage_level || 'None',
+    grainSize: l.quality?.grain_size || 'Uniform Bold',
+    moisturePercent: l.quality?.moisture_percent,
+    foreignMatterPercent: l.quality?.foreign_matter_percent,
+    qualityNotes: l.quality?.notes,
+    expectedPrice: Number(l.expected_price) || 2700,
+    minAcceptablePrice: Number(l.min_acceptable_price) || 2600,
+    marketReferencePrice: Number(l.market_reference_price) || 2800,
+    harvestDate: '2026',
+    location: l.location || 'Madhya Pradesh',
+    pickupLocation: l.pickup_location || 'Farm Godown',
+    status: l.status || 'Active',
+    createdAt: l.created_at || 'Just now',
+    matchedBuyersCount: 4,
+    activeOffersCount: 0,
+  }
+}
+
+function mapBackendOffer(o: any): Offer {
+  return {
+    id: o.id,
+    lotId: o.lot_id,
+    lotTitle: o.lot_title || `Produce Lot ${o.lot_id}`,
+    buyerId: o.buyer_id,
+    buyerName: o.buyer_name || 'Verified Buyer',
+    buyerCompany: o.buyer_company || 'Corporate Procurement',
+    buyerReliability: o.buyer_reliability || 4.9,
+    buyerVerified: o.buyer_verified ?? true,
+    offeredPrice: Number(o.offered_price) || 0,
+    lotExpectedPrice: Number(o.lot_expected_price) || Number(o.offered_price) || 0,
+    quantityQtl: Number(o.quantity_qtl) || 0,
+    totalAmount: Number(o.total_amount) || (Number(o.offered_price) * Number(o.quantity_qtl)),
+    expiresInHours: 48,
+    status: o.status || 'Pending',
+    counterPrice: o.counter_price,
+    createdDate: o.created_at || 'Recently',
+    paymentTerms: o.payment_terms || 'e-NWR Escrow auto-release on gate receipt',
+    pickupLocation: o.pickup_location || 'Designated Collection Center',
+    message: o.message,
+  }
+}
+
+function mapBackendTransaction(t: any): FarmTransaction {
+  return {
+    id: t.id,
+    lotId: t.lot_id,
+    offerId: t.offer_id,
+    farmerId: t.farmer_id,
+    farmerName: t.farmer_name,
+    farmerLocation: t.farmer_location,
+    farmerPhone: t.farmer_phone,
+    buyerId: t.buyer_id,
+    buyerName: t.buyer_name,
+    buyerOrganization: t.buyer_organization,
+    buyerLocation: t.buyer_location,
+    crop: t.crop,
+    cropHi: t.crop_hi,
+    variety: t.variety,
+    quantityQtl: Number(t.quantity_qtl),
+    unit: t.unit || 'Quintal',
+    agreedPricePerQtl: Number(t.agreed_price_per_qtl),
+    produceValue: Number(t.produce_value),
+    transportCost: Number(t.transport_cost),
+    mandiCess: Number(t.mandi_cess),
+    finalAmount: Number(t.final_amount),
+    mandiOrDeliveryLocation: t.mandi_or_delivery_location,
+    createdDate: t.created_at || 'Just now',
+    paymentStatus: t.payment_status,
+    transactionStatus: t.transaction_status,
+    timeline: t.timeline || [],
+    paymentDetails: t.payment_details,
+  }
+}
+
+function mapBackendUser(u: any): UserRecord {
+  return {
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    phone: u.phone,
+    userType: u.user_type === 'FARMER' ? 'Farmer' : u.user_type === 'BUYER' ? 'Buyer' : 'Admin',
+    location: u.location || 'Madhya Pradesh',
+    district: u.district || 'Harda',
+    state: u.state || 'Madhya Pradesh',
+    registeredDate: u.created_at ? new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '2026',
+    status: u.status || 'Active',
+    kycVerified: Boolean(u.kyc_verified),
+    organization: u.organization,
+    lotsCount: u.lotsCount || 0,
+    transactionsCount: u.transactionsCount || 0,
+  }
+}
