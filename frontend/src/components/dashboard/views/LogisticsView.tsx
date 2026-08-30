@@ -16,7 +16,9 @@ import {
   ChevronRight,
   RotateCcw,
   Navigation,
-  FileText
+  FileText,
+  Lock,
+  Package
 } from 'lucide-react'
 import { useDashboard } from '../../../context/DashboardContext'
 import {
@@ -25,20 +27,12 @@ import {
   type TransportVehicle,
   type VehicleType
 } from '../../../services/logisticsService'
+import {
+  geocodeLocation,
+  calculateGeoDistanceKm,
+  INDIAN_AGRI_GEO_REGISTRY
+} from '../../../services/geocodingService'
 import { AgriMapView, type MapMarkerPoint } from '../components/AgriMapView'
-
-function getOriginCoords(locStr?: string): [number, number] {
-  if (!locStr) return [24.4925, 77.2917] // Myana Farm Godown #2, Guna
-  const l = locStr.toLowerCase()
-  if (l.includes('guna') || l.includes('myana')) return [24.4925, 77.2917]
-  if (l.includes('sirali')) return [22.2850, 77.0120]
-  if (l.includes('harda')) return [22.3395, 77.0945]
-  if (l.includes('hoshangabad') || l.includes('narmadapuram')) return [22.7510, 77.7290]
-  if (l.includes('indore')) return [22.7196, 75.8577]
-  if (l.includes('bhopal')) return [23.2599, 77.4126]
-  if (l.includes('ujjain')) return [23.1765, 75.7885]
-  return [24.4925, 77.2917] // Default Guna / Myana
-}
 
 export function LogisticsView() {
   const [searchParams] = useSearchParams()
@@ -48,92 +42,147 @@ export function LogisticsView() {
   const dealIdParam = searchParams.get('dealId') || searchParams.get('transactionId')
   const mandiParam = searchParams.get('mandi')
 
-  // Find transaction if dealId passed or match active lot
+  // Find target transaction if dealId passed
   const targetTxn = dealIdParam ? transactions.find(t => t.id === dealIdParam) : undefined
 
-  // Selected Lot
-  const [selectedLotId, setSelectedLotId] = useState<string>(
-    targetTxn?.lotId || lotIdParam || (lots.length > 0 ? lots[0].id : '')
+  // Selected Deal / Transaction ID (or active lot)
+  const [selectedDealId, setSelectedDealId] = useState<string>(
+    targetTxn?.id || (transactions.length > 0 ? transactions[0].id : '')
   )
 
-  const activeLot = lots.find(l => l.id === selectedLotId) || (targetTxn ? lots.find(l => l.id === targetTxn.lotId) : lots[0])
+  const activeTxn = transactions.find(t => t.id === selectedDealId) || targetTxn
 
-  // Traded deal or matching transaction for this lot
-  const matchingTransaction = targetTxn || transactions.find(t => t.lotId === activeLot?.id)
+  // Selected Lot ID
+  const [selectedLotId, setSelectedLotId] = useState<string>(
+    activeTxn?.lotId || lotIdParam || (lots.length > 0 ? lots[0].id : '')
+  )
+
+  const activeLot = lots.find(l => l.id === selectedLotId) || (activeTxn ? lots.find(l => l.id === activeTxn.lotId) : lots[0])
+
+  // Traded deal or matching offer for this lot
+  const matchingTransaction = activeTxn || transactions.find(t => t.lotId === activeLot?.id)
   const matchingOffer = offers.find(o => o.lotId === activeLot?.id && o.status === 'Accepted')
 
-  // Traded lot quantity in Quintals (consistent across state and never 0)
-  const quantityQtl = matchingTransaction?.quantityQtl 
-    || matchingOffer?.quantityQtl 
-    || (activeLot?.quantityQtl && activeLot.quantityQtl > 0 ? activeLot.quantityQtl : (activeLot?.initialQuantityQtl || 100))
+  // Exact Shipment Quantity (Quintals) — Never 0 when valid lot/deal data exists
+  const quantityQtl: number = useMemo(() => {
+    if (matchingTransaction && typeof matchingTransaction.quantityQtl === 'number' && matchingTransaction.quantityQtl > 0) {
+      return matchingTransaction.quantityQtl
+    }
+    if (matchingOffer && typeof matchingOffer.quantityQtl === 'number' && matchingOffer.quantityQtl > 0) {
+      return matchingOffer.quantityQtl
+    }
+    if (activeLot && typeof activeLot.quantityQtl === 'number' && activeLot.quantityQtl > 0) {
+      return activeLot.quantityQtl
+    }
+    if (activeLot && typeof activeLot.initialQuantityQtl === 'number' && activeLot.initialQuantityQtl > 0) {
+      return activeLot.initialQuantityQtl
+    }
+    return 20
+  }, [matchingTransaction, matchingOffer, activeLot])
 
-  // Available Mandi Destinations
+  // Dynamic Origin Location from Farmer Deal / Lot
+  const originLocationName = useMemo(() => {
+    return (
+      matchingTransaction?.farmerLocation ||
+      activeLot?.pickupLocation ||
+      activeLot?.location ||
+      'Sirali Godown Bay #3, Harda, MP'
+    )
+  }, [matchingTransaction, activeLot])
+
+  // Available Mandi Destinations List
   const mandiOptions = useMemo(() => {
     return [
-      { name: 'Harda APMC Mandi', district: 'Harda', distanceKm: 18, coords: [22.3395, 77.0945] as [number, number], modalPrice: 2840 },
-      { name: 'Hoshangabad Mandi Hub', district: 'Narmadapuram', distanceKm: 78, coords: [22.751, 77.729] as [number, number], modalPrice: 2890 },
-      { name: 'Indore APMC Mandi', district: 'Indore', distanceKm: 145, coords: [22.7196, 75.8577] as [number, number], modalPrice: 3010 },
-      { name: 'Bhopal Karond APMC', district: 'Bhopal', distanceKm: 155, coords: [23.2599, 77.4126] as [number, number], modalPrice: 2960 },
-      { name: 'Ujjain APMC Mandi', district: 'Ujjain', distanceKm: 195, coords: [23.1765, 75.7885] as [number, number], modalPrice: 2980 },
+      { name: 'Harda APMC Mandi', district: 'Harda', modalPrice: 2840 },
+      { name: 'Hoshangabad Mandi Hub', district: 'Narmadapuram', modalPrice: 2890 },
+      { name: 'Indore APMC Mandi', district: 'Indore', modalPrice: 3010 },
+      { name: 'Bhopal Karond APMC', district: 'Bhopal', modalPrice: 2960 },
+      { name: 'Ujjain APMC Mandi', district: 'Ujjain', modalPrice: 2980 },
+      { name: 'Khandwa APMC Mandi', district: 'Khandwa', modalPrice: 2920 },
+      { name: 'Dewas APMC Mandi', district: 'Dewas', modalPrice: 2950 },
+      { name: 'Nagpur APMC Hub', district: 'Nagpur', modalPrice: 3100 },
+      { name: 'Mumbai APMC Terminal, Vashi', district: 'Thane', modalPrice: 3450 },
+      { name: 'Delhi Azadpur APMC Terminal', district: 'North Delhi', modalPrice: 3300 },
     ]
   }, [])
 
-  const [selectedMandiName, setSelectedMandiName] = useState<string>(
-    mandiParam || mandiOptions[0].name
-  )
+  // Dynamic Destination Selection: Prioritize Deal's destination if linked to a transaction
+  const initialDestination = matchingTransaction?.mandiOrDeliveryLocation || mandiParam || mandiOptions[0].name
+  const [selectedDestinationName, setSelectedDestinationName] = useState<string>(initialDestination)
 
   useEffect(() => {
-    if (targetTxn?.lotId) {
-      setSelectedLotId(targetTxn.lotId)
-    } else if (lotIdParam) {
-      setSelectedLotId(lotIdParam)
-    } else if (lots.length > 0 && !lots.some(l => l.id === selectedLotId)) {
-      setSelectedLotId(lots[0].id)
+    if (matchingTransaction?.mandiOrDeliveryLocation) {
+      setSelectedDestinationName(matchingTransaction.mandiOrDeliveryLocation)
     }
-  }, [targetTxn, lotIdParam, lots])
+  }, [matchingTransaction?.id, matchingTransaction?.mandiOrDeliveryLocation])
 
-  const selectedMandi = mandiOptions.find(m => m.name === selectedMandiName) || mandiOptions[0]
+  useEffect(() => {
+    if (dealIdParam) {
+      const match = transactions.find(t => t.id === dealIdParam)
+      if (match) {
+        setSelectedDealId(match.id)
+        setSelectedLotId(match.lotId)
+        if (match.mandiOrDeliveryLocation) {
+          setSelectedDestinationName(match.mandiOrDeliveryLocation)
+        }
+      }
+    }
+  }, [dealIdParam, transactions])
+
+  // Geocoding Origin and Destination Locations
+  const originGeo = useMemo(() => geocodeLocation(originLocationName), [originLocationName])
+  const destGeo = useMemo(() => geocodeLocation(selectedDestinationName), [selectedDestinationName])
+
+  // Calculate Real-world Driving Distance (Km) dynamically for ANY origin-destination pair
+  const distanceKm = useMemo(() => {
+    if (originGeo && destGeo) {
+      return calculateGeoDistanceKm(originGeo.coordinates, destGeo.coordinates)
+    }
+    return 45 // Graceful fallback
+  }, [originGeo, destGeo])
 
   // Selected Vehicle Type
   const [selectedVehicleType, setSelectedVehicleType] = useState<VehicleType>('medium_truck')
-
   const selectedVehicle = transportVehicles.find(v => v.type === selectedVehicleType) || transportVehicles[2]
 
-  // Calculate Transport Cost Breakdown
+  // Calculate Transport Cost Breakdown dynamically
   const transportCostBreakdown = useMemo(() => {
-    return calculateTransportCost(selectedMandi.distanceKm, selectedVehicle, quantityQtl)
-  }, [selectedMandi.distanceKm, selectedVehicle, quantityQtl])
+    return calculateTransportCost(distanceKm, selectedVehicle, quantityQtl)
+  }, [distanceKm, selectedVehicle, quantityQtl])
 
-  // Financial Impact Calculations
-  const grossSaleValue = (activeLot ? activeLot.expectedPrice : selectedMandi.modalPrice) * quantityQtl
-  const mandiGrossValue = selectedMandi.modalPrice * quantityQtl
-  const netInHandRealisation = mandiGrossValue - transportCostBreakdown.totalCost - Math.round(mandiGrossValue * 0.015)
-  const netRatePerQtl = Math.round(netInHandRealisation / quantityQtl)
+  // Financial Realization Calculations
+  const unitPrice = matchingTransaction?.agreedPricePerQtl || (activeLot ? activeLot.expectedPrice : 2850)
+  const grossDealValue = unitPrice * quantityQtl
+  const mandiCess = Math.round(grossDealValue * 0.015)
+  const totalDeductions = transportCostBreakdown.totalCost + mandiCess
+  const netInHandRealisation = grossDealValue - totalDeductions
+  const netRatePerQtl = quantityQtl > 0 ? Math.round(netInHandRealisation / quantityQtl) : 0
 
   // Booking Modal State
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false)
   const [bookingSuccess, setBookingSuccess] = useState(false)
 
-  // Map Markers
-  const originLocationName = activeLot?.pickupLocation || activeLot?.location || 'Myana Farm Godown #2, Guna'
-  const originCoordinates = getOriginCoords(originLocationName)
+  // Map Markers with Safe Geocoded Coordinates
+  const originMarker: MapMarkerPoint | undefined = originGeo
+    ? {
+        id: 'origin-godown',
+        title: originLocationName,
+        type: 'origin',
+        coordinates: originGeo.coordinates,
+        subtitle: `${activeLot ? activeLot.crop : 'Agricultural Produce'} (${quantityQtl} Quintal ready for dispatch)`,
+      }
+    : undefined
 
-  const originMarker: MapMarkerPoint = {
-    id: 'origin-godown',
-    title: originLocationName,
-    type: 'origin',
-    coordinates: originCoordinates,
-    subtitle: `${activeLot ? activeLot.crop : 'Soybean'} (${quantityQtl} Quintal ready for dispatch)`,
-  }
-
-  const destinationMarker: MapMarkerPoint = {
-    id: 'dest-mandi',
-    title: selectedMandi.name,
-    type: 'mandi',
-    coordinates: selectedMandi.coords,
-    subtitle: `${selectedMandi.distanceKm} km from godown`,
-    badgeText: `Modal Price: ₹${selectedMandi.modalPrice}/qtl`,
-  }
+  const destinationMarker: MapMarkerPoint | undefined = destGeo
+    ? {
+        id: 'dest-mandi',
+        title: selectedDestinationName,
+        type: 'mandi',
+        coordinates: destGeo.coordinates,
+        subtitle: `${distanceKm} km transit corridor from origin`,
+        badgeText: matchingTransaction ? `Deal: ${matchingTransaction.id}` : `APMC Mandi Terminal`,
+      }
+    : undefined
 
   const handleConfirmBooking = (e: React.FormEvent) => {
     e.preventDefault()
@@ -150,20 +199,23 @@ export function LogisticsView() {
       <div className="bg-wheat rounded-3xl border border-soil/15 p-6 md:p-8 shadow-sm space-y-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 mb-2">
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
               <span className="font-mono text-xs font-semibold uppercase tracking-wider text-turmeric bg-monsoon px-2.5 py-0.5 rounded-full flex items-center gap-1.5">
                 <Truck className="w-3.5 h-3.5 text-turmeric" />
                 Agri-Logistics & Freight Engine
               </span>
-              <span className="font-mono text-xs text-soil/70 bg-soil/5 border border-soil/15 px-2.5 py-0.5 rounded-full">
-                Multi-Axle Fleet Available
-              </span>
+              {matchingTransaction && (
+                <span className="font-mono text-xs text-turmeric bg-monsoon border border-turmeric/30 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                  <Lock className="w-3 h-3 text-turmeric" />
+                  Contract: {matchingTransaction.id}
+                </span>
+              )}
             </div>
             <h1 className="font-serif text-3xl md:text-4xl font-bold text-soil">
               Mandi Transport & Transit Routing
             </h1>
             <p className="font-body text-xs text-soil/70 mt-1 max-w-2xl">
-              Calculate road freight, compare carrier capacities, and optimize in-hand realization from farm-gate to APMC auction yard.
+              Calculate road freight, compare carrier capacities, and optimize in-hand realization from farm-gate to APMC auction yard or buyer delivery terminal.
             </p>
           </div>
 
@@ -184,45 +236,104 @@ export function LogisticsView() {
           </div>
         </div>
 
-        {/* Dynamic Selectors Bar: Lot & Destination Mandi */}
+        {/* Linked Deal Context Card (if transaction exists) */}
+        {matchingTransaction && (
+          <div className="p-4 rounded-2xl bg-monsoon text-wheat border border-turmeric/40 flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <Package className="w-6 h-6 text-turmeric flex-shrink-0" />
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-xs font-bold text-turmeric">{matchingTransaction.id}</span>
+                  <span className="font-mono text-[10px] text-wheat/60">&bull; Lot: {matchingTransaction.lotId}</span>
+                  <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-full bg-wheat/10 text-wheat border border-wheat/20">
+                    {matchingTransaction.paymentStatus}
+                  </span>
+                  <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-full bg-turmeric text-monsoon">
+                    {matchingTransaction.transactionStatus}
+                  </span>
+                </div>
+                <p className="font-body text-xs text-wheat/90 mt-0.5">
+                  <strong>{matchingTransaction.crop}</strong> ({matchingTransaction.variety}) &bull; Traded Shipment Quantity:{' '}
+                  <strong className="text-datateal">{quantityQtl} Quintals</strong> &bull; Seller:{' '}
+                  <strong>{matchingTransaction.farmerName}</strong> &bull; Buyer:{' '}
+                  <strong>{matchingTransaction.buyerOrganization || matchingTransaction.buyerName}</strong>
+                </p>
+              </div>
+            </div>
+
+            <Link
+              to={`/farmer/transactions/${matchingTransaction.id}`}
+              className="px-3.5 py-1.5 rounded-xl bg-wheat/10 text-wheat font-body text-xs font-semibold hover:bg-wheat/20 border border-wheat/20 transition-all flex items-center gap-1"
+            >
+              <span>View Trade Contract</span>
+              <ChevronRight className="w-3.5 h-3.5 text-turmeric" />
+            </Link>
+          </div>
+        )}
+
+        {/* Dynamic Selectors Bar: Lot / Deal & Destination Mandi */}
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-4 border-t border-soil/10">
           <div>
             <label className="block font-body text-xs font-semibold text-soil mb-1.5">
-              Select Produce Lot
+              Select Trade Deal or Lot
             </label>
             <select
-              value={selectedLotId}
-              onChange={(e) => setSelectedLotId(e.target.value)}
+              value={matchingTransaction ? matchingTransaction.id : selectedLotId}
+              onChange={(e) => {
+                const val = e.target.value
+                const tx = transactions.find(t => t.id === val)
+                if (tx) {
+                  setSelectedDealId(tx.id)
+                  setSelectedLotId(tx.lotId)
+                  if (tx.mandiOrDeliveryLocation) {
+                    setSelectedDestinationName(tx.mandiOrDeliveryLocation)
+                  }
+                } else {
+                  setSelectedLotId(val)
+                }
+              }}
               className="w-full px-3.5 py-2.5 rounded-xl bg-soil/5 border border-soil/15 font-body text-xs font-semibold text-soil focus:outline-none focus:border-turmeric cursor-pointer"
             >
-              {lots.map((l) => {
-                const lotMatchTx = transactions.find(t => t.lotId === l.id)
-                const lotMatchOff = offers.find(o => o.lotId === l.id && o.status === 'Accepted')
-                const displayQty = lotMatchTx?.quantityQtl || lotMatchOff?.quantityQtl || (l.quantityQtl > 0 ? l.quantityQtl : (l.initialQuantityQtl || 100))
-                return (
+              {transactions.length > 0 && (
+                <optgroup label="Active Trade Contracts">
+                  {transactions.map((tx) => (
+                    <option key={tx.id} value={tx.id}>
+                      Contract {tx.id} — {tx.crop} ({tx.quantityQtl} {tx.unit}) &bull; ₹{tx.finalAmount.toLocaleString('en-IN')}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              <optgroup label="Produce Lots">
+                {lots.map((l) => (
                   <option key={l.id} value={l.id}>
-                    {l.id} — {l.crop} ({displayQty} {l.unit || 'Quintal'}) {l.status === 'Sold' ? '• Traded' : ''}
+                    Lot {l.id} — {l.crop} ({l.quantityQtl > 0 ? l.quantityQtl : (l.initialQuantityQtl || 100)} {l.unit || 'Quintal'}) {l.status === 'Sold' ? '• Traded' : ''}
                   </option>
-                )
-              })}
+                ))}
+              </optgroup>
             </select>
           </div>
 
           <div>
             <label className="block font-body text-xs font-semibold text-soil mb-1.5">
-              Destination APMC Mandi
+              Destination Delivery Hub / APMC Mandi
             </label>
-            <select
-              value={selectedMandiName}
-              onChange={(e) => setSelectedMandiName(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-soil/5 border border-soil/15 font-body text-xs font-semibold text-soil focus:outline-none focus:border-turmeric cursor-pointer"
-            >
-              {mandiOptions.map((m) => (
-                <option key={m.name} value={m.name}>
-                  {m.name} ({m.distanceKm} km &bull; ₹{m.modalPrice}/qtl)
-                </option>
-              ))}
-            </select>
+            <div className="relative">
+              <input
+                type="text"
+                list="mandi-options-list"
+                value={selectedDestinationName}
+                onChange={(e) => setSelectedDestinationName(e.target.value)}
+                placeholder="Enter or select delivery destination..."
+                className="w-full px-3.5 py-2.5 rounded-xl bg-soil/5 border border-soil/15 font-body text-xs font-semibold text-soil focus:outline-none focus:border-turmeric"
+              />
+              <datalist id="mandi-options-list">
+                {mandiOptions.map((m) => (
+                  <option key={m.name} value={m.name}>
+                    {m.name} ({m.district}) &bull; ₹{m.modalPrice}/qtl
+                  </option>
+                ))}
+              </datalist>
+            </div>
           </div>
 
           <div className="sm:col-span-2 lg:col-span-1 bg-soil/5 rounded-2xl p-3 border border-soil/10 flex items-center justify-between">
@@ -233,9 +344,9 @@ export function LogisticsView() {
               </span>
             </div>
             <div className="text-right">
-              <span className="text-[10px] font-body text-soil/50 block uppercase">DISTANCE</span>
+              <span className="text-[10px] font-body text-soil/50 block uppercase">ROAD DISTANCE</span>
               <span className="font-mono text-base font-bold text-datateal">
-                {selectedMandi.distanceKm} km
+                {distanceKm} km
               </span>
             </div>
           </div>
@@ -256,27 +367,41 @@ export function LogisticsView() {
                 </h3>
               </div>
               <span className="font-mono text-xs font-semibold text-soil/70 bg-soil/5 px-2.5 py-1 rounded-full border border-soil/10">
-                OpenStreetMap Route
+                Leaflet + OpenStreetMap
               </span>
             </div>
+
+            {/* Geocoding Warning if address cannot be located */}
+            {(!originGeo || !destGeo) && (
+              <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center gap-2 text-xs font-body text-amber-900">
+                <AlertCircle className="w-4 h-4 text-amber-700 flex-shrink-0" />
+                <span>
+                  {!originGeo && !destGeo
+                    ? `Unable to pinpoint origin (${originLocationName}) and destination (${selectedDestinationName}) on map. Estimated highway transit corridor active.`
+                    : !originGeo
+                    ? `Unable to pinpoint farm-gate origin (${originLocationName}) on map.`
+                    : `Unable to pinpoint destination (${selectedDestinationName}) on map.`}
+                </span>
+              </div>
+            )}
 
             {/* Map Component */}
             <AgriMapView
               origin={originMarker}
               destination={destinationMarker}
               height="320px"
-              showRouteLine={true}
+              showRouteLine={Boolean(originMarker && destinationMarker)}
             />
 
-            <div className="flex items-center justify-between text-xs font-body text-soil/70 pt-2 border-t border-soil/10">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-body text-soil/70 pt-2 border-t border-soil/10">
               <div className="flex items-center gap-1.5">
                 <MapPin className="w-4 h-4 text-turmeric flex-shrink-0" />
                 <span className="font-semibold text-soil">Origin:</span>
-                <span className="truncate">{originLocationName}</span>
+                <span className="truncate max-w-[200px]">{originLocationName}</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <span className="font-semibold text-soil">Destination:</span>
-                <span>{selectedMandi.name}</span>
+                <span className="truncate max-w-[200px]">{selectedDestinationName}</span>
               </div>
             </div>
           </div>
@@ -290,14 +415,14 @@ export function LogisticsView() {
                   Select Carrier Vehicle ({transportVehicles.length} Options)
                 </h3>
               </div>
-              <span className="text-xs font-body text-soil/60">
-                Capacity based on {quantityQtl} Quintal lot
+              <span className="text-xs font-body text-soil/60 font-semibold">
+                Shipment Payload: <span className="text-soil font-bold">{quantityQtl} Quintals</span>
               </span>
             </div>
 
             <div className="grid sm:grid-cols-2 gap-4">
               {transportVehicles.map((v) => {
-                const breakdown = calculateTransportCost(selectedMandi.distanceKm, v, quantityQtl)
+                const breakdown = calculateTransportCost(distanceKm, v, quantityQtl)
                 const isSelected = selectedVehicleType === v.type
                 const isSuitable = v.capacityQtl >= quantityQtl
 
@@ -345,7 +470,7 @@ export function LogisticsView() {
                     }`}>
                       <span>Speed: ~{v.avgSpeedKmh} km/h</span>
                       <span className={isSuitable ? 'text-datateal font-bold' : 'text-orange-400 font-semibold'}>
-                        {isSuitable ? '✓ Capacity Sufficient' : '⚠️ Multi-trip Required'}
+                        {isSuitable ? '✓ Capacity Sufficient' : '⚠️ Exceeds Capacity'}
                       </span>
                     </div>
                   </div>
@@ -365,16 +490,16 @@ export function LogisticsView() {
                   FREIGHT & NET RETURN IMPACT
                 </span>
               </div>
-              <span className="font-mono text-[11px] text-wheat/60">
-                {selectedMandi.name}
+              <span className="font-mono text-[11px] text-wheat/60 truncate max-w-[150px]">
+                {selectedDestinationName}
               </span>
             </div>
 
             {/* Financial Breakdown Table */}
             <div className="space-y-3 font-body text-xs text-wheat/80">
               <div className="flex items-center justify-between">
-                <span>Gross Sale Value ({quantityQtl} qtl @ ₹{selectedMandi.modalPrice}/qtl):</span>
-                <span className="font-mono font-bold text-wheat">₹{mandiGrossValue.toLocaleString('en-IN')}</span>
+                <span>Gross Traded Value ({quantityQtl} qtl @ ₹{unitPrice.toLocaleString('en-IN')}/qtl):</span>
+                <span className="font-mono font-bold text-wheat">₹{grossDealValue.toLocaleString('en-IN')}</span>
               </div>
 
               <div className="pt-2 border-t border-wheat/10 space-y-2">
@@ -383,12 +508,12 @@ export function LogisticsView() {
                 </span>
                 
                 <div className="flex items-center justify-between text-wheat/70">
-                  <span>&bull; Base Road Freight ({selectedMandi.distanceKm} km @ ₹{selectedVehicle.ratePerKm}/km):</span>
+                  <span>&bull; Road Freight ({distanceKm} km @ ₹{selectedVehicle.ratePerKm}/km):</span>
                   <span className="font-mono text-wheat">-₹{transportCostBreakdown.baseFreight.toLocaleString('en-IN')}</span>
                 </div>
 
                 <div className="flex items-center justify-between text-wheat/70">
-                  <span>&bull; Farm-gate Loading / Handling:</span>
+                  <span>&bull; Farm-gate Loading & Unloading:</span>
                   <span className="font-mono text-wheat">-₹{transportCostBreakdown.handlingCost.toLocaleString('en-IN')}</span>
                 </div>
 
@@ -401,15 +526,15 @@ export function LogisticsView() {
 
                 <div className="flex items-center justify-between text-wheat/70">
                   <span>&bull; APMC Statutory Mandi Cess (1.5%):</span>
-                  <span className="font-mono text-wheat">-₹{Math.round(mandiGrossValue * 0.015).toLocaleString('en-IN')}</span>
+                  <span className="font-mono text-wheat">-₹{mandiCess.toLocaleString('en-IN')}</span>
                 </div>
               </div>
 
               {/* Total Deductions Callout */}
               <div className="p-3 bg-wheat/5 rounded-xl border border-wheat/10 flex items-center justify-between text-xs">
-                <span className="text-wheat/70 font-semibold">Total Freight Deductions:</span>
+                <span className="text-wheat/70 font-semibold">Total Transport & Cess Deductions:</span>
                 <span className="font-mono font-bold text-turmeric">
-                  -₹{(transportCostBreakdown.totalCost + Math.round(mandiGrossValue * 0.015)).toLocaleString('en-IN')}
+                  -₹{totalDeductions.toLocaleString('en-IN')}
                 </span>
               </div>
             </div>
@@ -423,7 +548,7 @@ export function LogisticsView() {
                 ₹{netInHandRealisation.toLocaleString('en-IN')}
               </p>
               <div className="flex items-center justify-between text-xs font-mono pt-2 border-t border-wheat/10 text-wheat/80">
-                <span>In-Hand Rate per Quintal:</span>
+                <span>Net In-Hand Rate per Quintal:</span>
                 <span className="text-wheat font-bold text-sm">₹{netRatePerQtl}/qtl</span>
               </div>
             </div>
@@ -435,7 +560,7 @@ export function LogisticsView() {
               className="w-full py-3.5 px-4 rounded-xl bg-turmeric text-monsoon font-body text-xs font-bold hover:bg-turmeric/90 active:bg-turmeric/80 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md"
             >
               <Truck className="w-4 h-4" />
-              <span>Book Carrier Vehicle for this Lot</span>
+              <span>Book Carrier Vehicle ({selectedVehicle.name})</span>
             </button>
           </div>
         </div>
@@ -475,7 +600,8 @@ export function LogisticsView() {
 
                 <div className="p-3 bg-soil/5 rounded-xl border border-soil/10 space-y-1 text-xs font-body text-soil">
                   <p><span className="font-bold">Carrier:</span> {selectedVehicle.name}</p>
-                  <p><span className="font-bold">Route:</span> {originLocationName} &rarr; {selectedMandi.name} ({selectedMandi.distanceKm} km)</p>
+                  <p><span className="font-bold">Route:</span> {originLocationName} &rarr; {selectedDestinationName} ({distanceKm} km)</p>
+                  <p><span className="font-bold">Payload:</span> {quantityQtl} Quintals</p>
                   <p><span className="font-bold">Estimated Cost:</span> ₹{transportCostBreakdown.totalCost.toLocaleString('en-IN')}</p>
                 </div>
 

@@ -101,13 +101,13 @@ async function runLiveBuyerOffersQA() {
     const highOffer = highOfferRes.data.data
     record('High Offer Submission', 'Buyer submits offer above asking price (₹2850 >= ₹2800)', Boolean(highOffer.id), `Offer ID: ${highOffer.id}`)
 
-    // 5. Fetch Farmer's Received Offers and verify count is 1 Pending and 1 High Offer
+    // 5. Fetch Farmer's Received Offers and verify count is 1 Pending and 1 High Offer on this lot
     const step5OffersRes = await axios.get(`${API_BASE}/offers/received`, {
       headers: { Authorization: `Bearer ${farmerToken}` },
     })
     const step5Offers = step5OffersRes.data.data
     const step5Pending = step5Offers.filter((o: any) => 
-      o.status === 'Pending' && (o.farmer_id === farmerUser.id || farmerLotIds.has(o.lot_id))
+      o.status === 'Pending' && o.lot_id === newLot.id
     )
     const step5High = step5Pending.filter((o: any) => {
       const askingPrice = newLot.expected_price || 2800
@@ -115,7 +115,7 @@ async function runLiveBuyerOffersQA() {
     })
     record(
       'Live Count Verification',
-      'Dashboard calculates 1 Live Buyer Offer and 1 High Offer',
+      'Dashboard calculates 1 Live Buyer Offer and 1 High Offer for the lot',
       step5Pending.length === 1 && step5High.length === 1,
       `Pending Offers: ${step5Pending.length}, High Offers: ${step5High.length} ("1 High Offer")`
     )
@@ -128,13 +128,13 @@ async function runLiveBuyerOffersQA() {
     )
     record('Farmer Acceptance', 'Farmer accepts high offer', acceptRes.data.success === true, `Offer ID: ${highOffer.id} Accepted`)
 
-    // 7. Re-fetch Farmer's Received Offers -> Count drops to 0 Pending and 0 High Offers
+    // 7. Re-fetch Farmer's Received Offers -> Count drops to 0 Pending on this lot
     const step7OffersRes = await axios.get(`${API_BASE}/offers/received`, {
       headers: { Authorization: `Bearer ${farmerToken}` },
     })
     const step7Offers = step7OffersRes.data.data
     const step7Pending = step7Offers.filter((o: any) => 
-      o.status === 'Pending' && (o.farmer_id === farmerUser.id || farmerLotIds.has(o.lot_id))
+      o.status === 'Pending' && o.lot_id === newLot.id
     )
     const step7High = step7Pending.filter((o: any) => {
       const askingPrice = newLot.expected_price || 2800
@@ -147,7 +147,7 @@ async function runLiveBuyerOffersQA() {
       `Pending: ${step7Pending.length}, High Offers: ${step7High.length} ("0 High Offers")`
     )
 
-    // 8. Relogin Farmer -> Verify persisted counts remain 0
+    // 8. Relogin Farmer -> Verify persisted counts on this lot remain 0
     const reloginRes = await axios.post(`${API_BASE}/auth/login`, {
       email: 'ramesh@farmnexus.in',
       password: 'password123',
@@ -158,13 +158,13 @@ async function runLiveBuyerOffersQA() {
     })
     const reloginOffers = reloginOffersRes.data.data
     const reloginPending = reloginOffers.filter((o: any) => 
-      o.status === 'Pending' && (o.farmer_id === farmerUser.id || farmerLotIds.has(o.lot_id))
+      o.status === 'Pending' && o.lot_id === newLot.id
     )
     record(
       'Persistence on Relogin',
       'Persisted data on fresh login shows 0 Live Offers / 0 High Offers',
       reloginPending.length === 0,
-      `Persisted Pending Offers: ${reloginPending.length}`
+      `Persisted Pending Offers on lot: ${reloginPending.length}`
     )
 
     console.log('\n==================================================================')

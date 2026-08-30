@@ -3,6 +3,12 @@ import { Offer, CropLot, Transaction, TransactionStatus, PaymentStatus } from '.
 
 export class TransactionService {
   static async createTransactionFromOffer(offer: Offer, lot: CropLot): Promise<Transaction> {
+    // Return existing transaction if one already exists for this offer (Idempotency)
+    const existingTxn = inMemoryDb.transactions.find(t => t.offer_id === offer.id)
+    if (existingTxn) {
+      return existingTxn
+    }
+
     const farmerUser = inMemoryDb.users.find(u => u.id === lot.farmer_id)
     const buyerUser = inMemoryDb.users.find(u => u.id === offer.buyer_id)
     const buyerProfile = inMemoryDb.buyerProfiles.find(p => p.user_id === offer.buyer_id)

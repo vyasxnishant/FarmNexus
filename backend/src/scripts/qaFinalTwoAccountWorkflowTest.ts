@@ -168,6 +168,11 @@ async function runTwoAccountEndToEndWorkflow() {
     // -------------------------------------------------------------
     // 6. FARMER B: Accepts Bid A
     // -------------------------------------------------------------
+    const dealsBeforeAcceptRes = await axios.get(`${API_BASE}/transactions`, {
+      headers: { Authorization: `Bearer ${farmerBToken}` },
+    })
+    const dealsBeforeAcceptCount = dealsBeforeAcceptRes.data.count
+
     const acceptRes = await axios.post(
       `${API_BASE}/offers/${bidAId}/accept`,
       {},
@@ -183,7 +188,7 @@ async function runTwoAccountEndToEndWorkflow() {
       headers: { Authorization: `Bearer ${farmerBToken}` },
     })
     const newDealsCount = allDealsAfterRes.data.count
-    const exactlyOneDealCreated = newDealsCount === initialDealsCount + 1
+    const exactlyOneDealCreated = newDealsCount === dealsBeforeAcceptCount + 1
 
     record(
       'STEP 7.1: Verify Bid Status = Accepted',
@@ -259,3 +264,4 @@ async function runTwoAccountEndToEndWorkflow() {
 }
 
 runTwoAccountEndToEndWorkflow()
+

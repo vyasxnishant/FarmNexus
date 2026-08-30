@@ -36,10 +36,11 @@ export class PricingIntelligenceService {
     }
 
     // Match market prices for this crop
-    const matchingPrices = inMemoryDb.marketPrices.filter(
-      p => p.commodity.toLowerCase().includes(lot.crop.toLowerCase()) ||
-           lot.crop.toLowerCase().includes(p.commodity.toLowerCase())
-    )
+    const lotCropClean = lot.crop.toLowerCase().trim()
+    const matchingPrices = inMemoryDb.marketPrices.filter(p => {
+      const comm = p.commodity.toLowerCase().trim()
+      return comm === lotCropClean || comm.includes(lotCropClean) || (comm.length > 4 && lotCropClean.startsWith(comm))
+    })
 
     if (matchingPrices.length === 0) {
       return {

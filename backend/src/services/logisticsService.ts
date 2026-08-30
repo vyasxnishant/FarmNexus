@@ -1,4 +1,5 @@
 import { inMemoryDb } from '../config/db.js'
+import { geocodeLocation, calculateGeoDistanceKm } from './geocodingService.js'
 
 export class LogisticsService {
   static async getLogisticsForLot(lotId: string, destinationMandi: string = 'Indore Central Mandi (Laxmibai Nagar)') {
@@ -7,13 +8,13 @@ export class LogisticsService {
       throw new Error(`Lot not found with ID: ${lotId}`)
     }
 
-    let distanceKm = 145
-    if (destinationMandi.includes('Harda')) distanceKm = 18
-    else if (destinationMandi.includes('Indore')) distanceKm = 145
-    else if (destinationMandi.includes('Ujjain')) distanceKm = 165
-    else if (destinationMandi.includes('Bhopal')) distanceKm = 155
-    else if (destinationMandi.includes('Hoshangabad')) distanceKm = 72
-    else if (destinationMandi.includes('Khandwa')) distanceKm = 95
+    const originGeo = geocodeLocation(lot.location) || geocodeLocation('Harda')
+    const destGeo = geocodeLocation(destinationMandi) || geocodeLocation('Indore')
+
+    let distanceKm = 45
+    if (originGeo && destGeo) {
+      distanceKm = calculateGeoDistanceKm(originGeo.coordinates, destGeo.coordinates)
+    }
 
     const options = inMemoryDb.transportOptions.map(opt => {
       const estimatedCost = Math.round(opt.base_fare + distanceKm * opt.per_km_rate)

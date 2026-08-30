@@ -241,20 +241,27 @@ export function AdminUsersView() {
 
       {/* Users Table */}
       <div className="bg-wheat rounded-3xl border border-soil/15 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs font-body text-soil">
-            <thead className="bg-soil/5 border-b border-soil/10 uppercase font-mono text-[10px] text-soil/60">
-              <tr>
-                <th className="py-3.5 px-4">User</th>
-                <th className="py-3.5 px-4">Role</th>
-                <th className="py-3.5 px-4">Organization / Location</th>
-                <th className="py-3.5 px-4">Registration</th>
-                <th className="py-3.5 px-4">KYC / Status</th>
-                <th className="py-3.5 px-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-soil/10">
-              {filteredUsers.map((user) => (
+        {filteredUsers.length === 0 ? (
+          <div className="p-12 text-center space-y-3">
+            <Users className="w-12 h-12 text-soil/30 mx-auto" />
+            <h3 className="font-serif text-xl font-bold text-soil">No users found</h3>
+            <p className="font-body text-xs text-soil/60">No user accounts matched your search criteria.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs font-body text-soil">
+              <thead className="bg-soil/5 border-b border-soil/10 uppercase font-mono text-[10px] text-soil/60">
+                <tr>
+                  <th className="py-3.5 px-4">User</th>
+                  <th className="py-3.5 px-4">Role</th>
+                  <th className="py-3.5 px-4">Organization / Location</th>
+                  <th className="py-3.5 px-4">Registration</th>
+                  <th className="py-3.5 px-4">KYC / Status</th>
+                  <th className="py-3.5 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-soil/10">
+                {filteredUsers.map((user) => (
                 <tr key={user.id} className="hover:bg-soil/5 transition-colors">
                   <td className="py-3.5 px-4">
                     <div className="flex items-center gap-2.5">
@@ -343,6 +350,7 @@ export function AdminUsersView() {
             </tbody>
           </table>
         </div>
+        )}
       </div>
 
       {/* Comprehensive Admin User Details Modal */}

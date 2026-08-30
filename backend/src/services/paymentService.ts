@@ -374,7 +374,10 @@ export class PaymentService {
     if (!payment && !txn) {
       throw new Error(`No payment or deal record found for Deal ID: ${dealId}`)
     }
+    const isSettled = txn?.transaction_status === 'Completed' || txn?.timeline.find(s => s.stage === 'completed')?.completed === true
     const isFunded = txn?.payment_status === 'Payment Successful' || txn?.timeline.find(s => s.stage === 'escrow_funded')?.completed === true
+    const escrowStatus = isSettled ? 'RELEASED' : isFunded ? 'FUNDED' : 'PENDING'
+
     return {
       dealId,
       paymentId: payment?.id || null,
@@ -382,7 +385,7 @@ export class PaymentService {
       amount: txn?.final_amount || payment?.amount || 0,
       currency: 'INR',
       paymentStatus: txn?.payment_status || payment?.status || 'Payment Pending',
-      escrowStatus: isFunded ? 'FUNDED' : 'PENDING',
+      escrowStatus,
       gatewayPaymentId: payment?.gateway_payment_id || txn?.payment_details?.transaction_ref || null,
       escrowReference: payment?.escrow_virtual_account || txn?.payment_details?.escrow_ref || null,
       paidAt: payment?.paid_at || txn?.payment_details?.paid_at || null,

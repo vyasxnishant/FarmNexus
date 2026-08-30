@@ -139,3 +139,13 @@ export function getTransactionActionDeskInfo(txn: FarmTransaction, isBuyerMode: 
   }
 }
 
+/**
+ * Returns clean escrow status: PENDING -> FUNDED -> RELEASED
+ */
+export function getEscrowStatus(txn?: Partial<FarmTransaction> | null): 'PENDING' | 'FUNDED' | 'RELEASED' {
+  if (!txn) return 'PENDING'
+  if (isDealSettled(txn)) return 'RELEASED'
+  if (isEscrowFunded(txn)) return 'FUNDED'
+  return 'PENDING'
+}
+

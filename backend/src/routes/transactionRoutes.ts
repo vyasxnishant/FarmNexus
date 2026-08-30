@@ -8,6 +8,7 @@ router.get('/', authenticateToken, TransactionController.getMyTransactions)
 router.get('/my', authenticateToken, TransactionController.getMyTransactions)
 router.get('/:id', authenticateToken, TransactionController.getTransactionById)
 router.post('/:id/advance-stage', authenticateToken, TransactionController.advanceStage)
+router.post('/:id/stage', authenticateToken, TransactionController.advanceStage)
 router.patch('/:id/lifecycle', authenticateToken, TransactionController.advanceStage)
 router.patch('/:id', authenticateToken, TransactionController.advanceStage)
 

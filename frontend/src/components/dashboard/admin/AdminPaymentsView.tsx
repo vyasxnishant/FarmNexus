@@ -145,57 +145,85 @@ export function AdminPaymentsView() {
 
       {/* Payments Table */}
       <div className="bg-wheat rounded-3xl border border-soil/15 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs font-body text-soil">
-            <thead className="bg-soil/5 border-b border-soil/10 uppercase font-mono text-[10px] text-soil/60">
-              <tr>
-                <th className="py-3.5 px-4">Transaction / Date</th>
-                <th className="py-3.5 px-4">Beneficiary (Farmer)</th>
-                <th className="py-3.5 px-4">Payer (Buyer)</th>
-                <th className="py-3.5 px-4">Settlement Rail</th>
-                <th className="py-3.5 px-4">Amount</th>
-                <th className="py-3.5 px-4">Payment Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-soil/10">
-              {filteredPayments.map((txn) => (
-                <tr key={txn.id} className="hover:bg-soil/5 transition-colors">
-                  <td className="py-3.5 px-4">
-                    <span className="font-mono text-xs font-bold text-soil block">{txn.id}</span>
-                    <span className="font-mono text-[10px] text-soil/50">{txn.createdDate}</span>
-                  </td>
-
-                  <td className="py-3.5 px-4">
-                    <span className="font-bold text-soil block">{txn.farmerName}</span>
-                    <span className="text-[10px] font-mono text-soil/50">SBI Linked Account</span>
-                  </td>
-
-                  <td className="py-3.5 px-4">
-                    <span className="font-bold text-soil block">{txn.buyerOrganization}</span>
-                    <span className="text-[10px] font-mono text-soil/50">{txn.paymentDetails?.payerVpa || 'ICICI Escrow VPA'}</span>
-                  </td>
-
-                  <td className="py-3.5 px-4 font-mono font-bold text-soil">
-                    {txn.paymentDetails?.method || 'e-NWR Escrow'}
-                  </td>
-
-                  <td className="py-3.5 px-4 font-mono text-sm font-bold text-datateal">
-                    ₹{txn.finalAmount.toLocaleString('en-IN')}
-                  </td>
-
-                  <td className="py-3.5 px-4">
-                    <span className={`font-mono text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                      txn.paymentStatus === 'Payment Successful' ? 'bg-datateal/20 text-soil border border-datateal/30' :
-                      txn.paymentStatus === 'Payment Pending' ? 'bg-amber-500/20 text-amber-900 border border-amber-400' : 'bg-red-500/10 text-red-800'
-                    }`}>
-                      {txn.paymentStatus}
-                    </span>
-                  </td>
+        {filteredPayments.length === 0 ? (
+          <div className="p-12 text-center space-y-3">
+            <DollarSign className="w-12 h-12 text-soil/30 mx-auto" />
+            <h3 className="font-serif text-xl font-bold text-soil">No payment records found</h3>
+            <p className="font-body text-xs text-soil/60">No transaction payments matched your filter criteria.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs font-body text-soil">
+              <thead className="bg-soil/5 border-b border-soil/10 uppercase font-mono text-[10px] text-soil/60">
+                <tr>
+                  <th className="py-3.5 px-4">Transaction / Date</th>
+                  <th className="py-3.5 px-4">Beneficiary (Farmer)</th>
+                  <th className="py-3.5 px-4">Payer (Buyer)</th>
+                  <th className="py-3.5 px-4">Amount</th>
+                  <th className="py-3.5 px-4">Payment Status</th>
+                  <th className="py-3.5 px-4">Escrow Status</th>
+                  <th className="py-3.5 px-4">Settlement Rail</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-soil/10">
+                {filteredPayments.map((txn) => {
+                  const escrowStatus =
+                    txn.transactionStatus === 'Completed'
+                      ? 'RELEASED'
+                      : txn.paymentStatus === 'Payment Successful' || txn.transactionStatus === 'Payment Completed' || txn.transactionStatus === 'In Transit' || txn.transactionStatus === 'Delivered'
+                      ? 'FUNDED'
+                      : 'PENDING'
+
+                  return (
+                    <tr key={txn.id} className="hover:bg-soil/5 transition-colors">
+                      <td className="py-3.5 px-4">
+                        <span className="font-mono text-xs font-bold text-soil block">{txn.id}</span>
+                        <span className="font-mono text-[10px] text-soil/50">{txn.createdDate}</span>
+                      </td>
+
+                      <td className="py-3.5 px-4">
+                        <span className="font-bold text-soil block">{txn.farmerName}</span>
+                        <span className="text-[10px] font-mono text-soil/50">Farmer ID: {txn.farmerId || 'USR-FRM-01'}</span>
+                      </td>
+
+                      <td className="py-3.5 px-4">
+                        <span className="font-bold text-soil block">{txn.buyerOrganization}</span>
+                        <span className="text-[10px] font-mono text-soil/50">{txn.paymentDetails?.payerVpa || 'buyer@icici'}</span>
+                      </td>
+
+                      <td className="py-3.5 px-4 font-mono text-sm font-bold text-datateal">
+                        ₹{txn.finalAmount.toLocaleString('en-IN')}
+                      </td>
+
+                      <td className="py-3.5 px-4">
+                        <span className={`font-mono text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          txn.paymentStatus === 'Payment Successful' ? 'bg-datateal/20 text-soil border border-datateal/30' :
+                          txn.paymentStatus === 'Payment Pending' ? 'bg-amber-500/20 text-amber-900 border border-amber-400' : 'bg-red-500/10 text-red-800'
+                        }`}>
+                          {txn.paymentStatus}
+                        </span>
+                      </td>
+
+                      <td className="py-3.5 px-4">
+                        <span className={`font-mono text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          escrowStatus === 'RELEASED' ? 'bg-emerald-500/20 text-emerald-900 border border-emerald-400' :
+                          escrowStatus === 'FUNDED' ? 'bg-datateal/20 text-soil border border-datateal/40' :
+                          'bg-amber-500/20 text-amber-900 border border-amber-400'
+                        }`}>
+                          {escrowStatus}
+                        </span>
+                      </td>
+
+                      <td className="py-3.5 px-4 font-mono text-xs text-soil/80">
+                        {txn.paymentDetails?.method || 'Razorpay UPI Escrow'}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   )

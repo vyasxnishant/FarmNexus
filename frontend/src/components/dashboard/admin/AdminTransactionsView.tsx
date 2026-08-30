@@ -58,12 +58,42 @@ export function AdminTransactionsView() {
             </p>
           </div>
 
-          <div className="p-3 bg-monsoon text-wheat rounded-2xl border border-turmeric/30 flex items-center gap-3">
-            <ShieldCheck className="w-6 h-6 text-turmeric flex-shrink-0" />
-            <div>
-              <span className="text-[10px] font-mono text-turmeric uppercase block">TOTAL CONTRACTS</span>
-              <span className="font-mono text-xl font-bold text-datateal">{transactions.length} Deals</span>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="p-3 bg-monsoon text-wheat rounded-2xl border border-turmeric/30 flex items-center gap-3">
+              <ShieldCheck className="w-5 h-5 text-turmeric flex-shrink-0" />
+              <div>
+                <span className="text-[10px] font-mono text-turmeric uppercase block">COMPLETED DEALS</span>
+                <span className="font-mono text-lg font-bold text-datateal">
+                  {transactions.filter((t) => t.transactionStatus === 'Completed').length} / {transactions.length}
+                </span>
+              </div>
             </div>
+          </div>
+        </div>
+
+        {/* Dynamic Summary Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-soil/10">
+          <div className="bg-soil/5 p-3 rounded-2xl border border-soil/10 text-center font-mono">
+            <span className="text-[10px] text-soil/60 block font-body uppercase">Total Contracts</span>
+            <span className="text-lg font-bold text-soil">{transactions.length}</span>
+          </div>
+          <div className="bg-soil/5 p-3 rounded-2xl border border-soil/10 text-center font-mono">
+            <span className="text-[10px] text-soil/60 block font-body uppercase">Active / In Transit</span>
+            <span className="text-lg font-bold text-amber-700">
+              {transactions.filter((t) => t.transactionStatus !== 'Completed').length}
+            </span>
+          </div>
+          <div className="bg-soil/5 p-3 rounded-2xl border border-soil/10 text-center font-mono">
+            <span className="text-[10px] text-soil/60 block font-body uppercase">Completed & Settled</span>
+            <span className="text-lg font-bold text-datateal">
+              {transactions.filter((t) => t.transactionStatus === 'Completed').length}
+            </span>
+          </div>
+          <div className="bg-soil/5 p-3 rounded-2xl border border-soil/10 text-center font-mono">
+            <span className="text-[10px] text-soil/60 block font-body uppercase">Gross Trade Value</span>
+            <span className="text-lg font-bold text-datateal">
+              ₹{(transactions.reduce((acc, t) => acc + (t.finalAmount || 0), 0) / 100000).toFixed(1)}L
+            </span>
           </div>
         </div>
 
@@ -99,43 +129,50 @@ export function AdminTransactionsView() {
 
       {/* Transactions Table */}
       <div className="bg-wheat rounded-3xl border border-soil/15 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs font-body text-soil">
-            <thead className="bg-soil/5 border-b border-soil/10 uppercase font-mono text-[10px] text-soil/60">
-              <tr>
-                <th className="py-3.5 px-4">Transaction ID / Date</th>
-                <th className="py-3.5 px-4">Seller (Farmer)</th>
-                <th className="py-3.5 px-4">Buyer Organization</th>
-                <th className="py-3.5 px-4">Commodity / Volume</th>
-                <th className="py-3.5 px-4">Escrow Value</th>
-                <th className="py-3.5 px-4">Lifecycle Stage</th>
-                <th className="py-3.5 px-4 text-right">Details</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-soil/10">
-              {filteredTxns.map((txn) => (
-                <tr key={txn.id} className="hover:bg-soil/5 transition-colors">
-                  <td className="py-3.5 px-4">
-                    <span className="font-mono text-xs font-bold text-soil block">{txn.id}</span>
-                    <span className="font-mono text-[10px] text-soil/50">{txn.createdDate}</span>
-                  </td>
+        {filteredTxns.length === 0 ? (
+          <div className="p-12 text-center space-y-3">
+            <CreditCard className="w-12 h-12 text-soil/30 mx-auto" />
+            <h3 className="font-serif text-xl font-bold text-soil">No deals found</h3>
+            <p className="font-body text-xs text-soil/60">No trade contracts matched your filter criteria.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs font-body text-soil">
+              <thead className="bg-soil/5 border-b border-soil/10 uppercase font-mono text-[10px] text-soil/60">
+                <tr>
+                  <th className="py-3.5 px-4">Transaction ID / Date</th>
+                  <th className="py-3.5 px-4">Seller (Farmer)</th>
+                  <th className="py-3.5 px-4">Buyer Organization</th>
+                  <th className="py-3.5 px-4">Commodity / Volume</th>
+                  <th className="py-3.5 px-4">Escrow Value</th>
+                  <th className="py-3.5 px-4">Lifecycle Stage</th>
+                  <th className="py-3.5 px-4 text-right">Details</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-soil/10">
+                {filteredTxns.map((txn) => (
+                  <tr key={txn.id} className="hover:bg-soil/5 transition-colors">
+                    <td className="py-3.5 px-4">
+                      <span className="font-mono text-xs font-bold text-soil block">{txn.id}</span>
+                      <span className="font-mono text-[10px] text-soil/50">{txn.createdDate}</span>
+                    </td>
 
-                  <td className="py-3.5 px-4">
-                    <span className="font-bold text-soil block">{txn.farmerName}</span>
-                    <span className="text-[11px] text-soil/60">{txn.farmerLocation}</span>
-                  </td>
+                    <td className="py-3.5 px-4">
+                      <span className="font-bold text-soil block">{txn.farmerName}</span>
+                      <span className="text-[11px] text-soil/60">{txn.farmerLocation}</span>
+                    </td>
 
-                  <td className="py-3.5 px-4">
-                    <span className="font-bold text-soil block">{txn.buyerOrganization}</span>
-                    <span className="text-[11px] text-soil/60">Rep: {txn.buyerName}</span>
-                  </td>
+                    <td className="py-3.5 px-4">
+                      <span className="font-bold text-soil block">{txn.buyerOrganization}</span>
+                      <span className="text-[11px] text-soil/60">Rep: {txn.buyerName}</span>
+                    </td>
 
-                  <td className="py-3.5 px-4">
-                    <span className="font-semibold text-soil block">{txn.crop}</span>
-                    <span className="font-mono text-[10px] text-soil/50">
-                      {txn.quantityQtl} {txn.unit} @ ₹{txn.agreedPricePerQtl}/qtl
-                    </span>
-                  </td>
+                    <td className="py-3.5 px-4">
+                      <span className="font-semibold text-soil block">{txn.crop}</span>
+                      <span className="font-mono text-[10px] text-soil/50">
+                        {txn.quantityQtl} {txn.unit} @ ₹{txn.agreedPricePerQtl}/qtl
+                      </span>
+                    </td>
 
                   <td className="py-3.5 px-4">
                     <span className="font-mono text-sm font-bold text-datateal block">
@@ -169,6 +206,7 @@ export function AdminTransactionsView() {
             </tbody>
           </table>
         </div>
+        )}
       </div>
 
       {/* Admin Transaction Contract Inspection Modal */}

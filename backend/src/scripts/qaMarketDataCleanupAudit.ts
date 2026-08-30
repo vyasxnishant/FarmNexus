@@ -76,13 +76,14 @@ async function runMarketDataCleanupAudit() {
     // STAGE 4: Pricing Intelligence for Lot with No Market Data
     // -------------------------------------------------------------
     // Create a lot for unique commodity
+    const uniqueTestCrop = `Vanilla Beans ${Date.now().toString().slice(-4)}`
     const testLotRes = await axios.post(
       `${API_BASE}/lots`,
       {
-        crop: 'Saffron (Kesar)',
-        crop_hi: 'केसर',
+        crop: uniqueTestCrop,
+        crop_hi: 'वैनिला',
         category: 'Spices & Condiments',
-        variety: 'Kashmiri Mongra',
+        variety: 'Bourbon Organic',
         quantity_qtl: 2,
         unit: 'Kg',
         grade: 'Grade A',
@@ -113,7 +114,7 @@ async function runMarketDataCleanupAudit() {
     const publishRes = await axios.post(
       `${API_BASE}/admin/market-prices`,
       {
-        crop: 'Saffron (Kesar)',
+        crop: uniqueTestCrop,
         mandi: 'Pampore APMC Spice Terminal',
         state: 'Jammu & Kashmir',
         distanceKm: 12,

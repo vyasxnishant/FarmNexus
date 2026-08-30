@@ -26,7 +26,7 @@ import {
 import { useDashboard, type FarmTransaction, type TransactionLifecycleStatus, type TransactionPaymentStatus } from '../../../context/DashboardContext'
 import { paymentApi } from '../../../services/apiServices'
 import { useRazorpay } from '../../../hooks/useRazorpay'
-import { isEscrowPayable, isDealSettled, isEscrowFunded, isInTransit, getTransactionActionDeskInfo } from '../../../utils/transactionUtils'
+import { isEscrowPayable, isDealSettled, isEscrowFunded, isInTransit, getTransactionActionDeskInfo, getEscrowStatus } from '../../../utils/transactionUtils'
 
 export function TransactionDetailsView() {
   const { transactionId } = useParams<{ transactionId: string }>()
@@ -244,6 +244,7 @@ export function TransactionDetailsView() {
   }
 
   const backLink = isBuyerMode ? '/buyer/transactions' : '/farmer/transactions'
+  const escrowStatus = getEscrowStatus(txn)
 
   return (
     <div className="space-y-8 pb-16">
@@ -296,12 +297,21 @@ export function TransactionDetailsView() {
             <p className="font-mono text-3xl font-bold text-datateal">
               ₹{txn.finalAmount.toLocaleString('en-IN')}
             </p>
-            <div className="flex items-center justify-end gap-2 pt-1">
+            <div className="flex items-center justify-end gap-2 pt-1 flex-wrap">
               <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-full bg-wheat/10 text-wheat border border-wheat/20">
                 {txn.paymentStatus}
               </span>
               <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-full bg-turmeric text-monsoon">
                 {txn.transactionStatus}
+              </span>
+              <span className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded-full ${
+                escrowStatus === 'RELEASED'
+                  ? 'bg-datateal text-monsoon'
+                  : escrowStatus === 'FUNDED'
+                  ? 'bg-emerald-500 text-monsoon font-bold'
+                  : 'bg-amber-400/20 text-amber-300 border border-amber-400/40'
+              }`}>
+                Escrow: {escrowStatus}
               </span>
             </div>
           </div>

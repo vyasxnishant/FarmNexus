@@ -100,6 +100,10 @@ export class OfferService {
     }
 
     if (offer.status === 'Accepted') {
+      const existingTxn = inMemoryDb.transactions.find(t => t.offer_id === offer.id)
+      if (existingTxn) {
+        return { offer, transaction: existingTxn }
+      }
       throw new Error('This offer has already been accepted.')
     }
 

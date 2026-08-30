@@ -9,54 +9,52 @@ interface RoleGuardProps {
 }
 
 export function RoleGuard({ children, allowedRoles = ['admin'] }: RoleGuardProps) {
-  const { userRole, setUserRole } = useDashboard()
+  const { currentUser, isAuthenticated } = useDashboard()
 
-  const hasAccess = allowedRoles.includes(userRole)
+  const normalizedRole = currentUser?.user_type?.toLowerCase() || 'guest'
+  const hasAccess = isAuthenticated && currentUser && (
+    (allowedRoles.includes('admin') && currentUser.user_type === 'ADMIN') ||
+    (allowedRoles.includes('farmer') && currentUser.user_type === 'FARMER') ||
+    (allowedRoles.includes('buyer') && currentUser.user_type === 'BUYER')
+  )
 
   if (!hasAccess) {
     return (
-      <div className="bg-wheat rounded-3xl border-2 border-soil/20 p-8 md:p-12 text-center space-y-6 max-w-2xl mx-auto my-8 shadow-sm">
-        <div className="w-16 h-16 rounded-full bg-amber-500/20 text-amber-900 border border-amber-400/40 flex items-center justify-center mx-auto">
-          <ShieldAlert className="w-8 h-8 text-amber-700" />
+      <div className="bg-wheat rounded-3xl border-2 border-red-500/20 p-8 md:p-12 text-center space-y-6 max-w-2xl mx-auto my-8 shadow-sm">
+        <div className="w-16 h-16 rounded-full bg-red-500/15 text-red-700 border border-red-500/30 flex items-center justify-center mx-auto">
+          <ShieldAlert className="w-8 h-8 text-red-600" />
         </div>
 
         <div className="space-y-2">
-          <span className="font-mono text-xs font-bold uppercase tracking-wider text-turmeric bg-monsoon px-3 py-1 rounded-full">
-            ROLE ACCESS RESTRICTION &bull; DEMO MODE
+          <span className="font-mono text-xs font-bold uppercase tracking-wider text-red-700 bg-red-500/10 px-3 py-1 rounded-full">
+            ROLE ACCESS RESTRICTION &bull; ACCESS DENIED
           </span>
           <h2 className="font-serif text-3xl font-bold text-soil">
-            Admin Access Required
+            Access Denied
           </h2>
           <p className="font-body text-xs text-soil/70 max-w-md mx-auto leading-relaxed">
-            You are currently viewing FarmNexus in <strong>{userRole.toUpperCase()}</strong> mode. The administrative control desk is restricted to authorized state operations staff.
-          </p>
-        </div>
-
-        <div className="p-4 bg-soil/5 rounded-2xl border border-soil/10 text-left text-xs font-body text-soil/80 space-y-2">
-          <div className="flex items-center gap-2 font-bold text-soil">
-            <ShieldCheck className="w-4 h-4 text-turmeric" />
-            <span>Frontend Role Simulation Notice:</span>
-          </div>
-          <p>
-            In production, authentication is enforced on the server via signed JWT sessions. In this interactive demo sandbox, you can switch your active role instantly:
+            Administrative control desk access is restricted strictly to authenticated Administrator accounts.
+            {currentUser ? (
+              <> You are currently logged in as a <strong>{currentUser.user_type}</strong> ({currentUser.email}).</>
+            ) : (
+              <> Please log in with authorized administrator credentials.</>
+            )}
           </p>
         </div>
 
         <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-          <button
-            type="button"
-            onClick={() => setUserRole('admin')}
+          <Link
+            to={currentUser?.user_type === 'BUYER' ? '/buyer/dashboard' : '/farmer'}
             className="px-6 py-3 bg-turmeric text-monsoon font-body text-xs font-bold rounded-xl hover:bg-turmeric/90 transition-all shadow-md flex items-center gap-2 cursor-pointer"
           >
-            <UserCheck className="w-4 h-4" />
-            <span>Switch to Admin Role & Open Desk</span>
-          </button>
+            <span>Return to Authorized Dashboard</span>
+          </Link>
 
           <Link
-            to="/farmer"
+            to="/login"
             className="px-5 py-3 bg-monsoon text-wheat font-body text-xs font-semibold rounded-xl hover:bg-monsoon/90 transition-all"
           >
-            Return to Farmer Hub
+            Sign In as Admin
           </Link>
         </div>
       </div>

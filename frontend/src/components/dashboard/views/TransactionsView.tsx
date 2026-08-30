@@ -24,7 +24,7 @@ import {
   type TransactionLifecycleStatus,
   type TransactionPaymentStatus
 } from '../../../context/DashboardContext'
-import { isEscrowPayable, isDealSettled } from '../../../utils/transactionUtils'
+import { isEscrowPayable, isDealSettled, getEscrowStatus } from '../../../utils/transactionUtils'
 import { DemoDataBadge } from '../components/DemoDataBadge'
 
 interface TransactionsViewProps {
@@ -214,6 +214,7 @@ export function TransactionsView({ isBuyer = false }: TransactionsViewProps) {
       ) : (
         <div className="space-y-4">
           {filteredTransactions.map((txn) => {
+            const escrowStatus = getEscrowStatus(txn)
             return (
               <div
                 key={txn.id}
@@ -230,6 +231,15 @@ export function TransactionsView({ isBuyer = false }: TransactionsViewProps) {
                       </span>
                       <span className={`font-mono text-[10px] px-2 py-0.5 rounded-full ${getLifecycleStatusBadge(txn.transactionStatus)}`}>
                         {txn.transactionStatus}
+                      </span>
+                      <span className={`font-mono text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        escrowStatus === 'RELEASED'
+                          ? 'bg-datateal text-monsoon'
+                          : escrowStatus === 'FUNDED'
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-amber-500/20 text-amber-900 border border-amber-400'
+                      }`}>
+                        Escrow: {escrowStatus}
                       </span>
                     </div>
 

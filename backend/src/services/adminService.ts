@@ -213,7 +213,7 @@ export class AdminService {
   }
 
   /**
-   * System and External Data Integrations Status
+   * System and External Data Integrations Status + Real Metrics
    */
   static async getSystemStatus() {
     const agmarknetStatus = AgmarknetService.getStatus()
@@ -221,8 +221,36 @@ export class AdminService {
     const weatherStatus = await WeatherService.checkStatus()
     const dbStatus = getDbStatus()
 
+    const totalFarmers = inMemoryDb.users.filter(u => u.user_type === 'FARMER').length
+    const totalBuyers = inMemoryDb.users.filter(u => u.user_type === 'BUYER').length
+    const totalLots = inMemoryDb.lots.length
+    const activeLots = inMemoryDb.lots.filter(l => l.status === 'Active').length
+    const totalOffers = inMemoryDb.offers.length
+    const acceptedOffers = inMemoryDb.offers.filter(o => o.status === 'Accepted').length
+    const totalTransactions = inMemoryDb.transactions.length
+    const completedTransactions = inMemoryDb.transactions.filter(t => t.transaction_status === 'Completed').length
+    const totalTradedValue = inMemoryDb.transactions.reduce((acc, t) => acc + (t.final_amount || 0), 0)
+    const successfulPayments = inMemoryDb.transactions.filter(t => t.payment_status === 'Payment Successful').length
+    const pendingPayments = inMemoryDb.transactions.filter(t => t.payment_status === 'Payment Pending').length
+
     return {
       timestamp: new Date().toISOString(),
+      server_status: 'Operational',
+      uptime_seconds: Math.floor(process.uptime()),
+      database_engine: dbStatus.isPostgresConnected ? 'PostgreSQL' : 'In-Memory Engine (Synchronous)',
+      statistics: {
+        total_farmers: totalFarmers,
+        total_buyers: totalBuyers,
+        total_lots: totalLots,
+        active_lots: activeLots,
+        total_offers: totalOffers,
+        accepted_offers: acceptedOffers,
+        total_deals: totalTransactions,
+        completed_deals: completedTransactions,
+        total_traded_value: totalTradedValue,
+        successful_payments: successfulPayments,
+        pending_payments: pendingPayments,
+      },
       services: {
         agmarknet: {
           name: 'AGMARKNET (data.gov.in)',

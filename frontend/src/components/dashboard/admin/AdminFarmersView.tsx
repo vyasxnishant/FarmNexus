@@ -38,8 +38,8 @@ export function AdminFarmersView() {
   })
 
   // Get associated lots and transactions for selected farmer
-  const farmerLots = lots.filter((l) => !selectedFarmer || l.location.includes(selectedFarmer.district) || l.location.includes('Sirali'))
-  const farmerTransactions = transactions.filter((t) => !selectedFarmer || t.farmerName === selectedFarmer.name)
+  const farmerLots = lots.filter((l) => !selectedFarmer || l.farmerId === selectedFarmer.id || l.farmerName === selectedFarmer.name)
+  const farmerTransactions = transactions.filter((t) => !selectedFarmer || t.farmerId === selectedFarmer.id || t.farmerName === selectedFarmer.name)
 
   return (
     <div className="space-y-8 pb-16">
@@ -87,62 +87,73 @@ export function AdminFarmersView() {
       </div>
 
       {/* Farmers Grid */}
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredFarmers.map((farmer) => (
-          <div
-            key={farmer.id}
-            className="bg-wheat rounded-3xl border border-soil/15 p-6 shadow-sm hover:border-soil/30 transition-all space-y-4 flex flex-col justify-between"
-          >
-            <div className="space-y-3">
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-monsoon text-turmeric flex items-center justify-center font-serif text-lg font-bold">
-                    {farmer.name.charAt(0)}
+      {filteredFarmers.length === 0 ? (
+        <div className="bg-wheat rounded-3xl border border-soil/15 p-12 text-center space-y-3">
+          <Users className="w-12 h-12 text-soil/30 mx-auto" />
+          <h3 className="font-serif text-xl font-bold text-soil">No farmers found</h3>
+          <p className="font-body text-xs text-soil/60">No registered farmer records matched your search filter.</p>
+        </div>
+      ) : (
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredFarmers.map((farmer) => (
+            <div
+              key={farmer.id}
+              className="bg-wheat rounded-3xl border border-soil/15 p-6 shadow-sm hover:border-soil/30 transition-all space-y-4 flex flex-col justify-between"
+            >
+              <div className="space-y-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-monsoon text-turmeric flex items-center justify-center font-serif text-lg font-bold">
+                      {farmer.name.charAt(0)}
+                    </div>
+                    <div>
+                      <h3 className="font-serif text-lg font-bold text-soil">{farmer.name}</h3>
+                      <span className="font-mono text-[10px] text-soil/50">{farmer.id} &bull; {farmer.registeredDate}</span>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-serif text-lg font-bold text-soil">{farmer.name}</h3>
-                    <span className="font-mono text-[10px] text-soil/50">{farmer.id} &bull; {farmer.registeredDate}</span>
+
+                  <span className={`font-mono text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    farmer.status === 'Active' ? 'bg-datateal/20 text-soil border border-datateal/40' : 'bg-amber-500/20 text-amber-900'
+                  }`}>
+                    {farmer.status}
+                  </span>
+                </div>
+
+                <div className="space-y-1.5 text-xs font-body text-soil/80 pt-2 border-t border-soil/10">
+                  <p className="flex items-center gap-2">
+                    <Building2 className="w-3.5 h-3.5 text-turmeric flex-shrink-0" />
+                    <span className="font-semibold text-soil">{farmer.organization || 'Individual Producer'}</span>
+                  </p>
+                  <p className="flex items-center gap-2">
+                    <MapPin className="w-3.5 h-3.5 text-soil/40 flex-shrink-0" />
+                    <span>{farmer.location} ({farmer.state})</span>
+                  </p>
+                  <p className="flex items-center gap-2">
+                    <Phone className="w-3.5 h-3.5 text-soil/40 flex-shrink-0" />
+                    <span className="font-mono">{farmer.phone}</span>
+                  </p>
+                </div>
+
+                {/* Mini Stats */}
+                <div className="grid grid-cols-3 gap-2 pt-2 text-center font-mono">
+                  <div className="bg-soil/5 rounded-xl p-2 border border-soil/10">
+                    <span className="text-[9px] text-soil/50 block font-body">LOTS</span>
+                    <span className="text-sm font-bold text-soil">
+                      {farmer.lotsCount ?? lots.filter(l => l.farmerId === farmer.id || l.farmerName === farmer.name).length}
+                    </span>
+                  </div>
+                  <div className="bg-soil/5 rounded-xl p-2 border border-soil/10">
+                    <span className="text-[9px] text-soil/50 block font-body">DEALS</span>
+                    <span className="text-sm font-bold text-soil">
+                      {farmer.transactionsCount ?? transactions.filter(t => t.farmerId === farmer.id || t.farmerName === farmer.name).length}
+                    </span>
+                  </div>
+                  <div className="bg-soil/5 rounded-xl p-2 border border-soil/10">
+                    <span className="text-[9px] text-soil/50 block font-body">KYC</span>
+                    <span className="text-xs font-bold text-datateal">{farmer.kycVerified ? 'VERIFIED' : 'PENDING'}</span>
                   </div>
                 </div>
-
-                <span className={`font-mono text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                  farmer.status === 'Active' ? 'bg-datateal/20 text-soil border border-datateal/40' : 'bg-amber-500/20 text-amber-900'
-                }`}>
-                  {farmer.status}
-                </span>
               </div>
-
-              <div className="space-y-1.5 text-xs font-body text-soil/80 pt-2 border-t border-soil/10">
-                <p className="flex items-center gap-2">
-                  <Building2 className="w-3.5 h-3.5 text-turmeric flex-shrink-0" />
-                  <span className="font-semibold text-soil">{farmer.organization || 'Individual Producer'}</span>
-                </p>
-                <p className="flex items-center gap-2">
-                  <MapPin className="w-3.5 h-3.5 text-soil/40 flex-shrink-0" />
-                  <span>{farmer.location} ({farmer.state})</span>
-                </p>
-                <p className="flex items-center gap-2">
-                  <Phone className="w-3.5 h-3.5 text-soil/40 flex-shrink-0" />
-                  <span className="font-mono">{farmer.phone}</span>
-                </p>
-              </div>
-
-              {/* Mini Stats */}
-              <div className="grid grid-cols-3 gap-2 pt-2 text-center font-mono">
-                <div className="bg-soil/5 rounded-xl p-2 border border-soil/10">
-                  <span className="text-[9px] text-soil/50 block font-body">LOTS</span>
-                  <span className="text-sm font-bold text-soil">{farmer.lotsCount || 1}</span>
-                </div>
-                <div className="bg-soil/5 rounded-xl p-2 border border-soil/10">
-                  <span className="text-[9px] text-soil/50 block font-body">DEALS</span>
-                  <span className="text-sm font-bold text-soil">{farmer.transactionsCount || 1}</span>
-                </div>
-                <div className="bg-soil/5 rounded-xl p-2 border border-soil/10">
-                  <span className="text-[9px] text-soil/50 block font-body">KYC</span>
-                  <span className="text-xs font-bold text-datateal">{farmer.kycVerified ? 'VERIFIED' : 'PENDING'}</span>
-                </div>
-              </div>
-            </div>
 
             {/* Actions */}
             <div className="pt-3 border-t border-soil/10 flex items-center justify-between gap-2">
@@ -158,6 +169,7 @@ export function AdminFarmersView() {
           </div>
         ))}
       </div>
+      )}
 
       {/* Farmer Dossier Modal */}
       {selectedFarmer && (

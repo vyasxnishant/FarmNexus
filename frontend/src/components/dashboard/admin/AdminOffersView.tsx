@@ -56,12 +56,36 @@ export function AdminOffersView() {
             </p>
           </div>
 
-          <div className="p-3 bg-monsoon text-wheat rounded-2xl border border-turmeric/30 flex items-center gap-3">
-            <ShieldCheck className="w-6 h-6 text-turmeric flex-shrink-0" />
-            <div>
-              <span className="text-[10px] font-mono text-turmeric uppercase block">TOTAL NETWORK BIDS</span>
-              <span className="font-mono text-xl font-bold text-datateal">{offers.length} Offers</span>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="p-3 bg-monsoon text-wheat rounded-2xl border border-turmeric/30 flex items-center gap-3">
+              <ShieldCheck className="w-5 h-5 text-turmeric flex-shrink-0" />
+              <div>
+                <span className="text-[10px] font-mono text-turmeric uppercase block">PENDING BIDS</span>
+                <span className="font-mono text-lg font-bold text-datateal">
+                  {offers.filter((o) => o.status === 'Pending').length} / {offers.length}
+                </span>
+              </div>
             </div>
+          </div>
+        </div>
+
+        {/* Dynamic Summary Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-soil/10">
+          <div className="bg-soil/5 p-3 rounded-2xl border border-soil/10 text-center font-mono">
+            <span className="text-[10px] text-soil/60 block font-body uppercase">Total Bids</span>
+            <span className="text-lg font-bold text-soil">{offers.length}</span>
+          </div>
+          <div className="bg-soil/5 p-3 rounded-2xl border border-soil/10 text-center font-mono">
+            <span className="text-[10px] text-soil/60 block font-body uppercase">Pending Bids</span>
+            <span className="text-lg font-bold text-amber-700">{offers.filter((o) => o.status === 'Pending').length}</span>
+          </div>
+          <div className="bg-soil/5 p-3 rounded-2xl border border-soil/10 text-center font-mono">
+            <span className="text-[10px] text-soil/60 block font-body uppercase">Accepted Bids</span>
+            <span className="text-lg font-bold text-datateal">{offers.filter((o) => o.status === 'Accepted').length}</span>
+          </div>
+          <div className="bg-soil/5 p-3 rounded-2xl border border-soil/10 text-center font-mono">
+            <span className="text-[10px] text-soil/60 block font-body uppercase">Countered / Other</span>
+            <span className="text-lg font-bold text-soil">{offers.filter((o) => o.status !== 'Pending' && o.status !== 'Accepted').length}</span>
           </div>
         </div>
 
@@ -96,73 +120,86 @@ export function AdminOffersView() {
 
       {/* Offers Table */}
       <div className="bg-wheat rounded-3xl border border-soil/15 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs font-body text-soil">
-            <thead className="bg-soil/5 border-b border-soil/10 uppercase font-mono text-[10px] text-soil/60">
-              <tr>
-                <th className="py-3.5 px-4">Offer ID / Date</th>
-                <th className="py-3.5 px-4">Buyer Company</th>
-                <th className="py-3.5 px-4">Produce Lot</th>
-                <th className="py-3.5 px-4">Bid Price</th>
-                <th className="py-3.5 px-4">Total Amount</th>
-                <th className="py-3.5 px-4">Status</th>
-                <th className="py-3.5 px-4 text-right">Inspect</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-soil/10">
-              {filteredOffers.map((offer) => (
-                <tr key={offer.id} className="hover:bg-soil/5 transition-colors">
-                  <td className="py-3.5 px-4">
-                    <span className="font-mono text-xs font-bold text-soil block">{offer.id}</span>
-                    <span className="font-mono text-[10px] text-soil/50">{offer.createdDate}</span>
-                  </td>
-
-                  <td className="py-3.5 px-4">
-                    <span className="font-serif font-bold text-sm text-soil block">{offer.buyerCompany}</span>
-                    <span className="text-[11px] text-soil/60">Rep: {offer.buyerName}</span>
-                  </td>
-
-                  <td className="py-3.5 px-4">
-                    <span className="font-semibold text-soil block">{offer.lotTitle}</span>
-                    <span className="text-[10px] font-mono text-soil/50">Lot: {offer.lotId}</span>
-                  </td>
-
-                  <td className="py-3.5 px-4">
-                    <span className="font-mono text-sm font-bold text-datateal block">
-                      ₹{offer.offeredPrice.toLocaleString('en-IN')}/qtl
-                    </span>
-                    <span className="font-mono text-[10px] text-soil/50">Expected: ₹{offer.lotExpectedPrice}/qtl</span>
-                  </td>
-
-                  <td className="py-3.5 px-4 font-mono font-bold text-soil">
-                    ₹{offer.totalAmount.toLocaleString('en-IN')}
-                  </td>
-
-                  <td className="py-3.5 px-4">
-                    <span className={`font-mono text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                      offer.status === 'Accepted' ? 'bg-datateal/20 text-soil border border-datateal/30' :
-                      offer.status === 'Pending' ? 'bg-amber-500/20 text-amber-900 border border-amber-400' :
-                      offer.status === 'Countered' ? 'bg-blue-500/20 text-blue-900 border border-blue-400' : 'bg-red-500/10 text-red-800'
-                    }`}>
-                      {offer.status}
-                    </span>
-                  </td>
-
-                  <td className="py-3.5 px-4 text-right">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedOffer(offer)}
-                      className="p-1.5 rounded-lg bg-soil/5 hover:bg-soil/10 text-soil transition-colors cursor-pointer"
-                      title="Inspect Offer Terms"
-                    >
-                      <Eye className="w-4 h-4" />
-                    </button>
-                  </td>
+        {filteredOffers.length === 0 ? (
+          <div className="p-12 text-center space-y-3">
+            <Receipt className="w-12 h-12 text-soil/30 mx-auto" />
+            <h3 className="font-serif text-xl font-bold text-soil">No bids found</h3>
+            <p className="font-body text-xs text-soil/60">No commercial bids matched your filter criteria.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs font-body text-soil">
+              <thead className="bg-soil/5 border-b border-soil/10 uppercase font-mono text-[10px] text-soil/60">
+                <tr>
+                  <th className="py-3.5 px-4">Offer ID / Date</th>
+                  <th className="py-3.5 px-4">Buyer Company</th>
+                  <th className="py-3.5 px-4">Produce Lot</th>
+                  <th className="py-3.5 px-4">Quantity</th>
+                  <th className="py-3.5 px-4">Bid Price</th>
+                  <th className="py-3.5 px-4">Total Amount</th>
+                  <th className="py-3.5 px-4">Status</th>
+                  <th className="py-3.5 px-4 text-right">Inspect</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-soil/10">
+                {filteredOffers.map((offer) => (
+                  <tr key={offer.id} className="hover:bg-soil/5 transition-colors">
+                    <td className="py-3.5 px-4">
+                      <span className="font-mono text-xs font-bold text-soil block">{offer.id}</span>
+                      <span className="font-mono text-[10px] text-soil/50">{offer.createdDate}</span>
+                    </td>
+
+                    <td className="py-3.5 px-4">
+                      <span className="font-serif font-bold text-sm text-soil block">{offer.buyerCompany}</span>
+                      <span className="text-[11px] text-soil/60">Rep: {offer.buyerName}</span>
+                    </td>
+
+                    <td className="py-3.5 px-4">
+                      <span className="font-semibold text-soil block">{offer.lotTitle}</span>
+                      <span className="text-[10px] font-mono text-soil/50">Lot: {offer.lotId}</span>
+                    </td>
+
+                    <td className="py-3.5 px-4 font-mono font-bold text-soil">
+                      {offer.quantityQtl || 20} Quintal
+                    </td>
+
+                    <td className="py-3.5 px-4">
+                      <span className="font-mono text-sm font-bold text-datateal block">
+                        ₹{offer.offeredPrice.toLocaleString('en-IN')}/qtl
+                      </span>
+                      <span className="font-mono text-[10px] text-soil/50">Expected: ₹{offer.lotExpectedPrice}/qtl</span>
+                    </td>
+
+                    <td className="py-3.5 px-4 font-mono font-bold text-soil">
+                      ₹{offer.totalAmount.toLocaleString('en-IN')}
+                    </td>
+
+                    <td className="py-3.5 px-4">
+                      <span className={`font-mono text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        offer.status === 'Accepted' ? 'bg-datateal/20 text-soil border border-datateal/30' :
+                        offer.status === 'Pending' ? 'bg-amber-500/20 text-amber-900 border border-amber-400' :
+                        offer.status === 'Countered' ? 'bg-blue-500/20 text-blue-900 border border-blue-400' : 'bg-red-500/10 text-red-800'
+                      }`}>
+                        {offer.status}
+                      </span>
+                    </td>
+
+                    <td className="py-3.5 px-4 text-right">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedOffer(offer)}
+                        className="p-1.5 rounded-lg bg-soil/5 hover:bg-soil/10 text-soil transition-colors cursor-pointer"
+                        title="Inspect Offer Terms"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Offer Terms Modal */}

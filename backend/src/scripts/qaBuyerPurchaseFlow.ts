@@ -49,13 +49,31 @@ async function runPurchaseFlowQA() {
     return
   }
 
-  // 2. Browse Produce Lots
+  // 2. Farmer creates fresh produce lot & Buyer browses
   let targetLot: any = null
   try {
+    const createdLotRes = await axios.post(
+      `${API_BASE}/lots`,
+      {
+        crop: 'Basmati Rice',
+        crop_hi: 'बासमती चावल',
+        category: 'Cereals & Grains',
+        variety: 'Pusa 1121',
+        quantity_qtl: 25,
+        unit: 'Quintal',
+        grade: 'Grade A',
+        expected_price: 2700,
+        min_acceptable_price: 2600,
+        location: 'Sirali Godown Bay #1, Harda',
+      },
+      { headers: { Authorization: `Bearer ${farmerToken}` } }
+    )
+    targetLot = createdLotRes.data.data
+
     const lotsRes = await axios.get(`${API_BASE}/lots`)
     const lots = lotsRes.data.data
     const hasLots = Array.isArray(lots) && lots.length > 0
-    targetLot = lots.find((l: any) => l.farmer_id === farmerId && l.status === 'Active') || lots[0]
+
     record(
       'Lot Discovery',
       'Buyer retrieves available active farmer produce lots',

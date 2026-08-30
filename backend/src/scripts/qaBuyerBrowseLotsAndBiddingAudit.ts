@@ -41,7 +41,7 @@ async function runBuyerBrowseLotsAndBiddingAudit() {
     const buyer1Id = buyer1AuthRes.data.data.user.id
 
     const buyer2AuthRes = await axios.post(`${API_BASE}/auth/login`, {
-      email: 'vijay@itcchoupal.com',
+      email: 'procure@itc.in',
       password: 'password123',
     })
     const buyer2Token = buyer2AuthRes.data.data.token

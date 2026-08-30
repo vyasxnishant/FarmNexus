@@ -82,69 +82,89 @@ export function AdminBuyersView() {
       </div>
 
       {/* Buyers Grid */}
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredBuyers.map((buyer) => (
-          <div
-            key={buyer.id}
-            className="bg-wheat rounded-3xl border border-soil/15 p-6 shadow-sm hover:border-soil/30 transition-all space-y-4 flex flex-col justify-between"
-          >
-            <div className="space-y-3">
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-monsoon text-turmeric flex items-center justify-center font-serif text-lg font-bold">
-                    {buyer.organization ? buyer.organization.charAt(0) : 'B'}
-                  </div>
-                  <div>
-                    <h3 className="font-serif text-base font-bold text-soil line-clamp-1">{buyer.organization || buyer.name}</h3>
-                    <span className="font-mono text-[10px] text-soil/50">Rep: {buyer.name}</span>
-                  </div>
-                </div>
+      {filteredBuyers.length === 0 ? (
+        <div className="bg-wheat rounded-3xl border border-soil/15 p-12 text-center space-y-3">
+          <Building2 className="w-12 h-12 text-soil/30 mx-auto" />
+          <h3 className="font-serif text-xl font-bold text-soil">No buyers found</h3>
+          <p className="font-body text-xs text-soil/60">No registered buyer records matched your search filter.</p>
+        </div>
+      ) : (
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredBuyers.map((buyer) => {
+            const buyerTxns = transactions.filter(
+              (t) => t.buyerId === buyer.id || (buyer.organization && t.buyerOrganization === buyer.organization) || t.buyerName === buyer.name
+            )
+            const totalProcurement = buyerTxns.reduce((acc, t) => acc + (t.finalAmount || 0), 0)
+            const dealsSettled = buyerTxns.filter(
+              (t) => t.transactionStatus === 'Completed' || t.paymentStatus === 'Payment Successful'
+            ).length
 
-                <span className={`font-mono text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                  buyer.status === 'Active' ? 'bg-datateal/20 text-soil border border-datateal/40' : 'bg-amber-500/20 text-amber-900'
-                }`}>
-                  {buyer.status}
-                </span>
-              </div>
-
-              <div className="space-y-1.5 text-xs font-body text-soil/80 pt-2 border-t border-soil/10">
-                <p className="flex items-center gap-2">
-                  <MapPin className="w-3.5 h-3.5 text-soil/40 flex-shrink-0" />
-                  <span className="line-clamp-1">{buyer.location}</span>
-                </p>
-                <p className="flex items-center gap-2">
-                  <Phone className="w-3.5 h-3.5 text-soil/40 flex-shrink-0" />
-                  <span className="font-mono">{buyer.phone}</span>
-                </p>
-              </div>
-
-              {/* Volume metrics */}
-              <div className="grid grid-cols-2 gap-2 pt-2 text-center font-mono">
-                <div className="bg-soil/5 rounded-xl p-2 border border-soil/10">
-                  <span className="text-[9px] text-soil/50 block font-body">TOTAL PROCUREMENT</span>
-                  <span className="text-sm font-bold text-datateal">₹{((buyer.totalVolumeRs || 1200000) / 100000).toFixed(1)}L</span>
-                </div>
-                <div className="bg-soil/5 rounded-xl p-2 border border-soil/10">
-                  <span className="text-[9px] text-soil/50 block font-body">DEALS SETTLED</span>
-                  <span className="text-sm font-bold text-soil">{buyer.transactionsCount || 5}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div className="pt-3 border-t border-soil/10">
-              <button
-                type="button"
-                onClick={() => setSelectedBuyer(buyer)}
-                className="w-full py-2 bg-monsoon text-wheat font-body text-xs font-bold rounded-xl hover:bg-monsoon/90 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+            return (
+              <div
+                key={buyer.id}
+                className="bg-wheat rounded-3xl border border-soil/15 p-6 shadow-sm hover:border-soil/30 transition-all space-y-4 flex flex-col justify-between"
               >
-                <Eye className="w-3.5 h-3.5 text-turmeric" />
-                <span>Inspect Buyer Details</span>
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-monsoon text-turmeric flex items-center justify-center font-serif text-lg font-bold">
+                        {buyer.organization ? buyer.organization.charAt(0) : (buyer.name ? buyer.name.charAt(0) : 'B')}
+                      </div>
+                      <div>
+                        <h3 className="font-serif text-base font-bold text-soil line-clamp-1">{buyer.organization || buyer.name}</h3>
+                        <span className="font-mono text-[10px] text-soil/50">Rep: {buyer.name}</span>
+                      </div>
+                    </div>
+
+                    <span className={`font-mono text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      buyer.status === 'Active' ? 'bg-datateal/20 text-soil border border-datateal/40' : 'bg-amber-500/20 text-amber-900'
+                    }`}>
+                      {buyer.status}
+                    </span>
+                  </div>
+
+                  <div className="space-y-1.5 text-xs font-body text-soil/80 pt-2 border-t border-soil/10">
+                    <p className="flex items-center gap-2">
+                      <MapPin className="w-3.5 h-3.5 text-soil/40 flex-shrink-0" />
+                      <span className="line-clamp-1">{buyer.location}</span>
+                    </p>
+                    <p className="flex items-center gap-2">
+                      <Phone className="w-3.5 h-3.5 text-soil/40 flex-shrink-0" />
+                      <span className="font-mono">{buyer.phone}</span>
+                    </p>
+                  </div>
+
+                  {/* Volume metrics */}
+                  <div className="grid grid-cols-2 gap-2 pt-2 text-center font-mono">
+                    <div className="bg-soil/5 rounded-xl p-2 border border-soil/10">
+                      <span className="text-[9px] text-soil/50 block font-body">TOTAL PROCUREMENT</span>
+                      <span className="text-sm font-bold text-datateal">
+                        {totalProcurement > 0 ? `₹${(totalProcurement / 100000).toFixed(1)}L` : '₹0'}
+                      </span>
+                    </div>
+                    <div className="bg-soil/5 rounded-xl p-2 border border-soil/10">
+                      <span className="text-[9px] text-soil/50 block font-body">DEALS SETTLED</span>
+                      <span className="text-sm font-bold text-soil">{dealsSettled}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="pt-3 border-t border-soil/10">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedBuyer(buyer)}
+                    className="w-full py-2 bg-monsoon text-wheat font-body text-xs font-bold rounded-xl hover:bg-monsoon/90 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Eye className="w-3.5 h-3.5 text-turmeric" />
+                    <span>Inspect Buyer Details</span>
+                  </button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       {/* Buyer Details Modal */}
       {selectedBuyer && (

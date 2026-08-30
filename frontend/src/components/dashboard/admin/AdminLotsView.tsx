@@ -71,12 +71,36 @@ export function AdminLotsView() {
             </p>
           </div>
 
-          <div className="p-3 bg-monsoon text-wheat rounded-2xl border border-turmeric/30 flex items-center gap-3">
-            <ShieldCheck className="w-6 h-6 text-turmeric flex-shrink-0" />
-            <div>
-              <span className="text-[10px] font-mono text-turmeric uppercase block">TOTAL LISTINGS</span>
-              <span className="font-mono text-xl font-bold text-datateal">{lots.length} Lots</span>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="p-3 bg-monsoon text-wheat rounded-2xl border border-turmeric/30 flex items-center gap-3">
+              <ShieldCheck className="w-5 h-5 text-turmeric flex-shrink-0" />
+              <div>
+                <span className="text-[10px] font-mono text-turmeric uppercase block">ACTIVE LOTS</span>
+                <span className="font-mono text-lg font-bold text-datateal">
+                  {lots.filter((l) => l.status === 'Active').length} / {lots.length}
+                </span>
+              </div>
             </div>
+          </div>
+        </div>
+
+        {/* Dynamic Summary Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-soil/10">
+          <div className="bg-soil/5 p-3 rounded-2xl border border-soil/10 text-center font-mono">
+            <span className="text-[10px] text-soil/60 block font-body uppercase">Total Lots</span>
+            <span className="text-lg font-bold text-soil">{lots.length}</span>
+          </div>
+          <div className="bg-soil/5 p-3 rounded-2xl border border-soil/10 text-center font-mono">
+            <span className="text-[10px] text-soil/60 block font-body uppercase">Active Lots</span>
+            <span className="text-lg font-bold text-datateal">{lots.filter((l) => l.status === 'Active').length}</span>
+          </div>
+          <div className="bg-soil/5 p-3 rounded-2xl border border-soil/10 text-center font-mono">
+            <span className="text-[10px] text-soil/60 block font-body uppercase">Sold Lots</span>
+            <span className="text-lg font-bold text-soil">{lots.filter((l) => l.status === 'Sold').length}</span>
+          </div>
+          <div className="bg-soil/5 p-3 rounded-2xl border border-soil/10 text-center font-mono">
+            <span className="text-[10px] text-soil/60 block font-body uppercase">Pending / Review</span>
+            <span className="text-lg font-bold text-amber-700">{lots.filter((l) => l.status !== 'Active' && l.status !== 'Sold').length}</span>
           </div>
         </div>
 
@@ -86,7 +110,7 @@ export function AdminLotsView() {
             <Search className="w-4 h-4 absolute left-3 top-3 text-soil/40" />
             <input
               type="text"
-              placeholder="Search lot ID, crop, variety, village..."
+              placeholder="Search lot ID, crop, variety, farmer..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full bg-soil/5 border border-soil/15 rounded-xl pl-9 pr-3 py-2.5 font-body text-xs text-soil focus:outline-none focus:border-turmeric"
@@ -121,86 +145,100 @@ export function AdminLotsView() {
 
       {/* Lots Table */}
       <div className="bg-wheat rounded-3xl border border-soil/15 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs font-body text-soil">
-            <thead className="bg-soil/5 border-b border-soil/10 uppercase font-mono text-[10px] text-soil/60">
-              <tr>
-                <th className="py-3.5 px-4">Lot ID / Crop</th>
-                <th className="py-3.5 px-4">Grade & Quality</th>
-                <th className="py-3.5 px-4">Volume</th>
-                <th className="py-3.5 px-4">Expected Price</th>
-                <th className="py-3.5 px-4">Location</th>
-                <th className="py-3.5 px-4">Status</th>
-                <th className="py-3.5 px-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-soil/10">
-              {filteredLots.map((lot) => (
-                <tr key={lot.id} className="hover:bg-soil/5 transition-colors">
-                  <td className="py-3.5 px-4">
-                    <span className="font-mono text-[10px] text-soil/50 font-bold block">{lot.id}</span>
-                    <span className="font-serif font-bold text-sm text-soil block">{lot.crop}</span>
-                    <span className="text-[11px] text-soil/60 font-body">{lot.variety}</span>
-                  </td>
+        {filteredLots.length === 0 ? (
+          <div className="p-12 text-center space-y-3">
+            <Package className="w-12 h-12 text-soil/30 mx-auto" />
+            <h3 className="font-serif text-xl font-bold text-soil">No lots found</h3>
+            <p className="font-body text-xs text-soil/60">No produce lots matched your search criteria.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs font-body text-soil">
+              <thead className="bg-soil/5 border-b border-soil/10 uppercase font-mono text-[10px] text-soil/60">
+                <tr>
+                  <th className="py-3.5 px-4">Lot ID / Crop</th>
+                  <th className="py-3.5 px-4">Farmer / Owner</th>
+                  <th className="py-3.5 px-4">Grade & Quality</th>
+                  <th className="py-3.5 px-4">Volume</th>
+                  <th className="py-3.5 px-4">Expected Price</th>
+                  <th className="py-3.5 px-4">Location</th>
+                  <th className="py-3.5 px-4">Status</th>
+                  <th className="py-3.5 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-soil/10">
+                {filteredLots.map((lot) => (
+                  <tr key={lot.id} className="hover:bg-soil/5 transition-colors">
+                    <td className="py-3.5 px-4">
+                      <span className="font-mono text-[10px] text-soil/50 font-bold block">{lot.id}</span>
+                      <span className="font-serif font-bold text-sm text-soil block">{lot.crop}</span>
+                      <span className="text-[11px] text-soil/60 font-body">{lot.variety}</span>
+                    </td>
 
-                  <td className="py-3.5 px-4">
-                    <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded-full bg-monsoon text-wheat block w-fit mb-1">
-                      {lot.grade}
-                    </span>
-                    <span className="text-[10px] text-soil/60">Moisture: {lot.moisturePercent ? `${lot.moisturePercent}%` : 'Standard'}</span>
-                  </td>
+                    <td className="py-3.5 px-4">
+                      <span className="font-serif font-bold text-soil block">{lot.farmerName || 'Ramesh Patel'}</span>
+                      <span className="font-mono text-[10px] text-soil/50">{lot.farmerId || 'USR-FRM-01'}</span>
+                    </td>
 
-                  <td className="py-3.5 px-4 font-mono font-bold text-soil">
-                    {lot.quantityQtl} {lot.unit || 'qtl'}
-                  </td>
+                    <td className="py-3.5 px-4">
+                      <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded-full bg-monsoon text-wheat block w-fit mb-1">
+                        {lot.grade}
+                      </span>
+                      <span className="text-[10px] text-soil/60">Moisture: {lot.moisturePercent ? `${lot.moisturePercent}%` : 'Standard'}</span>
+                    </td>
 
-                  <td className="py-3.5 px-4">
-                    <span className="font-mono font-bold text-datateal block">₹{lot.expectedPrice.toLocaleString('en-IN')}/qtl</span>
-                    <span className="font-mono text-[10px] text-soil/50">Min ₹{lot.minAcceptablePrice}/qtl</span>
-                  </td>
+                    <td className="py-3.5 px-4 font-mono font-bold text-soil">
+                      {lot.quantityQtl} {lot.unit || 'qtl'}
+                    </td>
 
-                  <td className="py-3.5 px-4 text-soil/70">
-                    <span className="line-clamp-1">{lot.location}</span>
-                  </td>
+                    <td className="py-3.5 px-4">
+                      <span className="font-mono font-bold text-datateal block">₹{lot.expectedPrice.toLocaleString('en-IN')}/qtl</span>
+                      <span className="font-mono text-[10px] text-soil/50">Min ₹{lot.minAcceptablePrice}/qtl</span>
+                    </td>
 
-                  <td className="py-3.5 px-4">
-                    <span className={`font-mono text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                      lot.status === 'Active' ? 'bg-datateal/20 text-soil border border-datateal/30' :
-                      lot.status === 'Under Review' ? 'bg-red-500/20 text-red-900 border border-red-400' :
-                      lot.status === 'Under Offer' ? 'bg-amber-500/20 text-amber-900 border border-amber-400' : 'bg-soil/10 text-soil'
-                    }`}>
-                      {lot.status}
-                    </span>
-                  </td>
+                    <td className="py-3.5 px-4 text-soil/70">
+                      <span className="line-clamp-1">{lot.location}</span>
+                    </td>
 
-                  <td className="py-3.5 px-4 text-right">
-                    <div className="flex items-center justify-end gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedLot(lot)}
-                        className="p-1.5 rounded-lg bg-soil/5 hover:bg-soil/10 text-soil transition-colors cursor-pointer"
-                        title="Inspect Quality Assay"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
+                    <td className="py-3.5 px-4">
+                      <span className={`font-mono text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        lot.status === 'Active' ? 'bg-datateal/20 text-soil border border-datateal/30' :
+                        lot.status === 'Under Review' ? 'bg-red-500/20 text-red-900 border border-red-400' :
+                        lot.status === 'Under Offer' ? 'bg-amber-500/20 text-amber-900 border border-amber-400' : 'bg-soil/10 text-soil'
+                      }`}>
+                        {lot.status}
+                      </span>
+                    </td>
 
-                      {lot.status !== 'Under Review' && (
+                    <td className="py-3.5 px-4 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
                         <button
                           type="button"
-                          onClick={() => setFlagModalLot(lot)}
-                          className="p-1.5 rounded-lg bg-red-500/10 text-red-700 hover:bg-red-500/20 transition-colors cursor-pointer"
-                          title="Flag for Review"
+                          onClick={() => setSelectedLot(lot)}
+                          className="p-1.5 rounded-lg bg-soil/5 hover:bg-soil/10 text-soil transition-colors cursor-pointer"
+                          title="Inspect Quality Assay"
                         >
-                          <Flag className="w-4 h-4" />
+                          <Eye className="w-4 h-4" />
                         </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+
+                        {lot.status !== 'Under Review' && (
+                          <button
+                            type="button"
+                            onClick={() => setFlagModalLot(lot)}
+                            className="p-1.5 rounded-lg bg-red-500/10 text-red-700 hover:bg-red-500/20 transition-colors cursor-pointer"
+                            title="Flag for Review"
+                          >
+                            <Flag className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Lot Inspection Modal */}
