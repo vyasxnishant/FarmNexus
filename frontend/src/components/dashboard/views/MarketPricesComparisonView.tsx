@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useSearchParams, Link, useNavigate } from 'react-router-dom'
 import {
   TrendingUp,
@@ -41,11 +41,51 @@ export function MarketPricesComparisonView() {
 
   const lotIdParam = searchParams.get('lotId')
 
+  // Filter to only Active lots — same source of truth as Buyer Browse Lots
+  const activeLots = useMemo(() => {
+    return lots.filter((l) => l.status === 'Active' && l.quantityQtl > 0)
+  }, [lots])
+
   // Selected Lot / Crop / Quantity State
-  const [selectedLotId, setSelectedLotId] = useState<string>(lotIdParam || (lots.length > 0 ? lots[0].id : 'custom'))
+  const [selectedLotId, setSelectedLotId] = useState<string>(
+    lotIdParam || (activeLots.length > 0 ? activeLots[0].id : 'custom')
+  )
   const [crop, setCrop] = useState<string>('Wheat (Sharbati)')
   const [quantity, setQuantity] = useState<number>(100)
   const [unit, setUnit] = useState<'Quintal' | 'Tonne' | 'Kg'>('Quintal')
+
+  // Auto-select first active lot when lots load asynchronously (e.g. after login / page refresh)
+  useEffect(() => {
+    if (activeLots.length > 0 && selectedLotId === 'custom' && !lotIdParam) {
+      const firstLot = activeLots[0]
+      setSelectedLotId(firstLot.id)
+      setCrop(firstLot.crop)
+      setQuantity(firstLot.quantityQtl)
+      setUnit(firstLot.unit || 'Quintal')
+    }
+    // If a lotId param was given, verify it exists in activeLots
+    if (lotIdParam && activeLots.length > 0) {
+      const found = activeLots.find((l) => l.id === lotIdParam)
+      if (!found) {
+        // Param lot is not active — fall back to first active lot
+        const firstLot = activeLots[0]
+        setSelectedLotId(firstLot.id)
+        setSearchParams({ lotId: firstLot.id })
+      }
+    }
+  }, [activeLots, lotIdParam])
+
+  // Sync crop/quantity/unit with selected lot
+  useEffect(() => {
+    if (selectedLotId && selectedLotId !== 'custom') {
+      const found = activeLots.find((l) => l.id === selectedLotId)
+      if (found) {
+        setCrop(found.crop)
+        setQuantity(found.quantityQtl)
+        setUnit(found.unit || 'Quintal')
+      }
+    }
+  }, [selectedLotId, activeLots])
 
   // Search & Filtering State
   const [searchQuery, setSearchQuery] = useState<string>('')
@@ -61,18 +101,6 @@ export function MarketPricesComparisonView() {
   const [mandiRecords, setMandiRecords] = useState<MandiMarketRecord[]>([])
   const [isLoading, setIsLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
-
-  // Sync with selected lot
-  useEffect(() => {
-    if (selectedLotId && selectedLotId !== 'custom') {
-      const found = lots.find((l) => l.id === selectedLotId)
-      if (found) {
-        setCrop(found.crop)
-        setQuantity(found.quantityQtl)
-        setUnit(found.unit || 'Quintal')
-      }
-    }
-  }, [selectedLotId, lots])
 
   // Load Mandi Prices when crop changes
   useEffect(() => {
@@ -150,7 +178,7 @@ export function MarketPricesComparisonView() {
     )
   }, [comparisons, quantityInQuintals, freightRate, handlingRate])
 
-  const selectedLot = lots.find((l) => l.id === selectedLotId)
+  const selectedLot = activeLots.find((l) => l.id === selectedLotId)
 
   return (
     <div className="space-y-8 pb-16">
@@ -215,9 +243,14 @@ export function MarketPricesComparisonView() {
               }}
               className="w-full px-3 py-2.5 rounded-xl bg-soil/5 border border-soil/15 font-body text-xs text-soil font-semibold focus:outline-none focus:border-turmeric cursor-pointer"
             >
-              {lots.map((l) => (
+              {activeLots.length === 0 && (
+                <option value="" disabled>
+                  {lang === 'en' ? 'No active produce lots available' : 'कोई सक्रिय लॉट उपलब्ध नहीं'}
+                </option>
+              )}
+              {activeLots.map((l) => (
                 <option key={l.id} value={l.id}>
-                  {l.id} — {l.crop} ({l.quantityQtl} {l.unit || 'qtl'})
+                  {l.id} — {l.crop} ({l.quantityQtl} {l.unit || 'qtl'}){l.farmerName ? ` • ${l.farmerName}` : ''}{l.location ? ` • ${l.location}` : ''}
                 </option>
               ))}
               <option value="custom">{lang === 'en' ? 'Custom Commodity & Quantity' : 'कस्टम फसल व मात्रा'}</option>
