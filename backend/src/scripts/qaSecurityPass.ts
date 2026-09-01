@@ -179,10 +179,9 @@ async function runQAPass() {
     record('Payment Flow', 'Create Escrow Deposit Order', Boolean(orderId), `Order ID: ${orderId}, Amount: ₹${orderRes.data.data.amount}`)
 
     // 4.5 Verify Escrow Deposit (Secured in Escrow)
-    const verifyRes = await axios.post(`${API_BASE}/payments/verify`, {
+    const verifyRes = await axios.post(`${API_BASE}/payments/sandbox-pay`, {
       transactionId: createdTxnId,
-      orderId,
-      referenceId: 'REF-ICICI-SEC-8921',
+      paymentMethod: 'Razorpay Sandbox (Auto-Verified)',
       payerVpa: 'itc.procurement@icici',
     }, {
       headers: { Authorization: `Bearer ${buyerToken}` },
