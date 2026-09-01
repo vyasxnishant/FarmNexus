@@ -26,6 +26,7 @@ import {
 import { useDashboard } from '../../../context/DashboardContext'
 import { DemoDataBadge } from '../components/DemoDataBadge'
 import { LocationSelector } from '../../ui/LocationSelector'
+import { SearchableBankSelect, resolveBankName } from '../../ui/SearchableBankSelect'
 import { bankApi } from '../../../services/apiServices'
 
 export function ProfileView() {
@@ -60,6 +61,8 @@ export function ProfileView() {
     upi_id_masked: null,
   })
   const [isBankModalOpen, setIsBankModalOpen] = useState(false)
+  const [selectedBankPreset, setSelectedBankPreset] = useState<string>('')
+  const [customBankName, setCustomBankName] = useState<string>('')
   const [bankFormData, setBankFormData] = useState({
     account_holder_name: currentUser?.name || '',
     bank_name: '',
@@ -75,6 +78,24 @@ export function ProfileView() {
   const isBuyer = currentUser?.user_type === 'BUYER'
   const isAdmin = currentUser?.user_type === 'ADMIN'
 
+  // Open bank modal and prefill existing bank details correctly
+  const openBankModal = () => {
+    setBankError(null)
+    setBankSuccessMsg(null)
+    const resolved = resolveBankName(bankDetails.bank_name)
+    setSelectedBankPreset(resolved.selectedPreset)
+    setCustomBankName(resolved.customName)
+    setBankFormData({
+      account_holder_name: bankDetails.account_holder_name || currentUser?.name || '',
+      bank_name: bankDetails.bank_name || '',
+      account_number: '',
+      confirm_account_number: '',
+      ifsc_code: '',
+      upi_id: '',
+    })
+    setIsBankModalOpen(true)
+  }
+
   // Fetch Bank Details for authenticated farmer on mount
   useEffect(() => {
     const loadBankDetails = async () => {
@@ -84,6 +105,9 @@ export function ProfileView() {
           if (res.data) {
             setBankDetails(res.data)
             if (res.data.bank_name) {
+              const resolved = resolveBankName(res.data.bank_name)
+              setSelectedBankPreset(resolved.selectedPreset)
+              setCustomBankName(resolved.customName)
               setBankFormData(prev => ({
                 ...prev,
                 bank_name: res.data.bank_name || '',
@@ -116,22 +140,53 @@ export function ProfileView() {
     }
   }
 
+  const handleBankSelect = (bankName: string) => {
+    setSelectedBankPreset(bankName)
+    if (bankName !== 'Other') {
+      setBankFormData(prev => ({ ...prev, bank_name: bankName }))
+      setCustomBankName('')
+    } else {
+      setBankFormData(prev => ({ ...prev, bank_name: customBankName }))
+    }
+  }
+
+  const handleCustomBankNameChange = (val: string) => {
+    setCustomBankName(val)
+    setBankFormData(prev => ({ ...prev, bank_name: val }))
+  }
+
   const handleBankSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setBankError(null)
     setBankSuccessMsg(null)
 
-    // Basic Frontend Validations
-    if (!bankFormData.account_holder_name.trim() || !bankFormData.bank_name.trim()) {
-      setBankError('Please enter Account Holder Name and Bank Name.')
+    // 1. Bank Name Validation
+    const effectiveBankName = selectedBankPreset === 'Other'
+      ? customBankName.trim()
+      : selectedBankPreset.trim()
+
+    if (!selectedBankPreset) {
+      setBankError('Please select your Bank Name from the list.')
       return
     }
 
+    if (selectedBankPreset === 'Other' && !effectiveBankName) {
+      setBankError('Please specify your official Bank Name.')
+      return
+    }
+
+    // 2. Account Holder Validation
+    if (!bankFormData.account_holder_name.trim()) {
+      setBankError('Please enter Account Holder Name.')
+      return
+    }
+
+    // 3. Account Number Validation (9-18 numeric digits)
     const cleanAcc = bankFormData.account_number.trim().replace(/\s+/g, '')
     const cleanConfirm = bankFormData.confirm_account_number.trim().replace(/\s+/g, '')
 
     if (!cleanAcc || !/^\d{9,18}$/.test(cleanAcc)) {
-      setBankError('Account Number must be between 9 and 18 numeric digits.')
+      setBankError('Account Number must contain between 9 and 18 numeric digits.')
       return
     }
 
@@ -140,13 +195,16 @@ export function ProfileView() {
       return
     }
 
+    // 4. IFSC Validation (11 chars: 4 alpha, '0', 6 alphanumeric)
     const cleanIfsc = bankFormData.ifsc_code.trim().toUpperCase()
     if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(cleanIfsc)) {
-      setBankError('Invalid IFSC Code format (e.g. SBIN0000382, HDFC0001234).')
+      setBankError('Invalid IFSC Code format. Must be exactly 11 characters (e.g. SBIN0000382, HDFC0001234) with 5th character as 0.')
       return
     }
 
-    if (bankFormData.upi_id.trim() && !/^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z]{2,64}$/.test(bankFormData.upi_id.trim())) {
+    // 5. UPI ID Validation (Optional)
+    const cleanUpi = bankFormData.upi_id.trim()
+    if (cleanUpi && !/^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z]{2,64}$/.test(cleanUpi)) {
       setBankError('Invalid UPI ID format (e.g. farmer@sbi, name@okhdfcbank).')
       return
     }
@@ -155,15 +213,18 @@ export function ProfileView() {
     try {
       const res = await bankApi.updateBankDetails({
         account_holder_name: bankFormData.account_holder_name.trim(),
-        bank_name: bankFormData.bank_name.trim(),
+        bank_name: effectiveBankName,
         account_number: cleanAcc,
         confirm_account_number: cleanConfirm,
         ifsc_code: cleanIfsc,
-        upi_id: bankFormData.upi_id.trim() || undefined,
+        upi_id: cleanUpi || undefined,
       })
 
       if (res.data) {
         setBankDetails(res.data)
+        const resolved = resolveBankName(res.data.bank_name)
+        setSelectedBankPreset(resolved.selectedPreset)
+        setCustomBankName(resolved.customName)
       }
       setBankSuccessMsg('Bank details saved & encrypted successfully!')
       setBankFormData(prev => ({ ...prev, account_number: '', confirm_account_number: '' }))
@@ -448,10 +509,7 @@ export function ProfileView() {
 
                   <button
                     type="button"
-                    onClick={() => {
-                      setBankError(null)
-                      setIsBankModalOpen(true)
-                    }}
+                    onClick={openBankModal}
                     className="px-4 py-2 rounded-xl bg-turmeric text-monsoon font-body font-bold text-xs hover:bg-turmeric/90 transition-all flex items-center gap-1.5 shrink-0 shadow-sm cursor-pointer"
                   >
                     <PlusCircle className="w-3.5 h-3.5" />
@@ -470,10 +528,7 @@ export function ProfileView() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => {
-                      setBankError(null)
-                      setIsBankModalOpen(true)
-                    }}
+                    onClick={openBankModal}
                     className="px-3 py-1 rounded-lg bg-wheat/10 text-wheat hover:bg-wheat/20 font-body text-xs font-bold transition-colors cursor-pointer"
                   >
                     Edit Details
@@ -587,15 +642,31 @@ export function ProfileView() {
                 <label className="block font-semibold mb-1">
                   Bank Name <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. State Bank of India, Punjab National Bank, HDFC Bank"
-                  value={bankFormData.bank_name}
-                  onChange={(e) => setBankFormData({ ...bankFormData, bank_name: e.target.value })}
-                  className="w-full bg-soil/5 border border-soil/15 rounded-xl px-3 py-2.5 text-soil font-semibold focus:outline-none focus:border-turmeric"
+                <SearchableBankSelect
+                  value={selectedBankPreset}
+                  onChange={handleBankSelect}
+                  placeholder="Select or search Indian Bank Name..."
                 />
               </div>
+
+              {selectedBankPreset === 'Other' && (
+                <div className="animate-fade-in">
+                  <label className="block font-semibold mb-1">
+                    Specify Bank Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Enter official bank name (e.g. Madhyanchal Gramin Bank)"
+                    value={customBankName}
+                    onChange={(e) => handleCustomBankNameChange(e.target.value)}
+                    className="w-full bg-soil/5 border border-soil/15 rounded-xl px-3 py-2.5 text-soil font-semibold focus:outline-none focus:border-turmeric"
+                  />
+                  <span className="text-[10px] text-soil/60 mt-0.5 block">
+                    Enter the registered bank or cooperative society name.
+                  </span>
+                </div>
+              )}
 
               <div className="grid sm:grid-cols-2 gap-3">
                 <div>
@@ -605,9 +676,12 @@ export function ProfileView() {
                   <input
                     type="password"
                     required
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={18}
                     placeholder="9 to 18 numeric digits"
                     value={bankFormData.account_number}
-                    onChange={(e) => setBankFormData({ ...bankFormData, account_number: e.target.value })}
+                    onChange={(e) => setBankFormData({ ...bankFormData, account_number: e.target.value.replace(/\D/g, '').slice(0, 18) })}
                     className="w-full bg-soil/5 border border-soil/15 rounded-xl px-3 py-2.5 text-soil font-mono focus:outline-none focus:border-turmeric"
                   />
                 </div>
@@ -619,9 +693,12 @@ export function ProfileView() {
                   <input
                     type="text"
                     required
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={18}
                     placeholder="Re-enter account number"
                     value={bankFormData.confirm_account_number}
-                    onChange={(e) => setBankFormData({ ...bankFormData, confirm_account_number: e.target.value })}
+                    onChange={(e) => setBankFormData({ ...bankFormData, confirm_account_number: e.target.value.replace(/\D/g, '').slice(0, 18) })}
                     className="w-full bg-soil/5 border border-soil/15 rounded-xl px-3 py-2.5 text-soil font-mono focus:outline-none focus:border-turmeric"
                   />
                 </div>
@@ -635,11 +712,15 @@ export function ProfileView() {
                   <input
                     type="text"
                     required
+                    maxLength={11}
                     placeholder="e.g. SBIN0000382"
                     value={bankFormData.ifsc_code}
-                    onChange={(e) => setBankFormData({ ...bankFormData, ifsc_code: e.target.value.toUpperCase() })}
+                    onChange={(e) => setBankFormData({ ...bankFormData, ifsc_code: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 11) })}
                     className="w-full bg-soil/5 border border-soil/15 rounded-xl px-3 py-2.5 text-soil font-mono uppercase focus:outline-none focus:border-turmeric"
                   />
+                  <span className="text-[10px] text-soil/50 mt-0.5 block">
+                    11 chars (5th character must be 0)
+                  </span>
                 </div>
 
                 <div>
@@ -653,6 +734,9 @@ export function ProfileView() {
                     onChange={(e) => setBankFormData({ ...bankFormData, upi_id: e.target.value })}
                     className="w-full bg-soil/5 border border-soil/15 rounded-xl px-3 py-2.5 text-soil font-mono focus:outline-none focus:border-turmeric"
                   />
+                  <span className="text-[10px] text-soil/50 mt-0.5 block">
+                    For instant escrow notifications
+                  </span>
                 </div>
               </div>
 
