@@ -37,55 +37,63 @@ import { AgriMapView, type MapMarkerPoint } from '../components/AgriMapView'
 export function MarketPricesComparisonView() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
-  const { lots, lang } = useDashboard()
+  const { currentUser, lots, lang } = useDashboard()
+
+  const isBuyer = currentUser?.user_type === 'BUYER'
+  const isFarmer = currentUser?.user_type === 'FARMER'
 
   const lotIdParam = searchParams.get('lotId')
 
-  // Filter to only Active lots — same source of truth as Buyer Browse Lots
-  const activeLots = useMemo(() => {
-    return lots.filter((l) => l.status === 'Active' && l.quantityQtl > 0)
+  // Filter to only valid, eligible lots with remaining harvest volume
+  const eligibleLots = useMemo(() => {
+    return lots.filter((l) => l.status !== 'Sold' && l.status !== 'Expired' && l.quantityQtl > 0)
   }, [lots])
 
   // Selected Lot / Crop / Quantity State
   const [selectedLotId, setSelectedLotId] = useState<string>(
-    lotIdParam || (activeLots.length > 0 ? activeLots[0].id : 'custom')
+    lotIdParam || (eligibleLots.length > 0 ? eligibleLots[0].id : 'custom')
   )
   const [crop, setCrop] = useState<string>('Wheat (Sharbati)')
   const [quantity, setQuantity] = useState<number>(100)
   const [unit, setUnit] = useState<'Quintal' | 'Tonne' | 'Kg'>('Quintal')
 
-  // Auto-select first active lot when lots load asynchronously (e.g. after login / page refresh)
+  // Auto-select first eligible lot when lots load asynchronously (e.g. after login / page refresh)
   useEffect(() => {
-    if (activeLots.length > 0 && selectedLotId === 'custom' && !lotIdParam) {
-      const firstLot = activeLots[0]
-      setSelectedLotId(firstLot.id)
-      setCrop(firstLot.crop)
-      setQuantity(firstLot.quantityQtl)
-      setUnit(firstLot.unit || 'Quintal')
-    }
-    // If a lotId param was given, verify it exists in activeLots
-    if (lotIdParam && activeLots.length > 0) {
-      const found = activeLots.find((l) => l.id === lotIdParam)
-      if (!found) {
-        // Param lot is not active — fall back to first active lot
-        const firstLot = activeLots[0]
-        setSelectedLotId(firstLot.id)
-        setSearchParams({ lotId: firstLot.id })
+    if (eligibleLots.length > 0) {
+      if (lotIdParam) {
+        const found = eligibleLots.find((l) => l.id === lotIdParam)
+        if (found) {
+          setSelectedLotId(found.id)
+          setCrop(found.crop)
+          setQuantity(found.quantityQtl)
+          setUnit(found.unit || 'Quintal')
+          return
+        }
       }
+      // If current selection is not in eligibleLots and not 'custom', or on initial load
+      if (!selectedLotId || (!eligibleLots.some((l) => l.id === selectedLotId) && selectedLotId !== 'custom')) {
+        const firstLot = eligibleLots[0]
+        setSelectedLotId(firstLot.id)
+        setCrop(firstLot.crop)
+        setQuantity(firstLot.quantityQtl)
+        setUnit(firstLot.unit || 'Quintal')
+      }
+    } else if (eligibleLots.length === 0 && selectedLotId !== 'custom') {
+      setSelectedLotId('custom')
     }
-  }, [activeLots, lotIdParam])
+  }, [eligibleLots, lotIdParam])
 
   // Sync crop/quantity/unit with selected lot
   useEffect(() => {
     if (selectedLotId && selectedLotId !== 'custom') {
-      const found = activeLots.find((l) => l.id === selectedLotId)
+      const found = eligibleLots.find((l) => l.id === selectedLotId)
       if (found) {
         setCrop(found.crop)
         setQuantity(found.quantityQtl)
         setUnit(found.unit || 'Quintal')
       }
     }
-  }, [selectedLotId, activeLots])
+  }, [selectedLotId, eligibleLots])
 
   // Search & Filtering State
   const [searchQuery, setSearchQuery] = useState<string>('')
@@ -178,7 +186,7 @@ export function MarketPricesComparisonView() {
     )
   }, [comparisons, quantityInQuintals, freightRate, handlingRate])
 
-  const selectedLot = activeLots.find((l) => l.id === selectedLotId)
+  const selectedLot = eligibleLots.find((l) => l.id === selectedLotId)
 
   return (
     <div className="space-y-8 pb-16">
@@ -206,15 +214,15 @@ export function MarketPricesComparisonView() {
 
           <div className="flex items-center gap-2 self-start md:self-auto">
             <Link
-              to="/farmer/lots"
+              to={isBuyer ? '/buyer/lots' : '/farmer/lots'}
               className="px-4 py-2.5 rounded-xl bg-soil/5 text-soil font-body text-xs font-semibold border border-soil/15 hover:bg-soil/10 transition-colors flex items-center gap-1.5"
             >
               <Sprout className="w-4 h-4 text-turmeric" />
-              <span>{lang === 'en' ? 'My Lots' : 'मेरी फसलें'}</span>
+              <span>{isBuyer ? (lang === 'en' ? 'Browse Produce Lots' : 'फसल लॉट देखें') : (lang === 'en' ? 'My Lots' : 'मेरी फसलें')}</span>
             </Link>
 
             <Link
-              to="/farmer/market-intelligence"
+              to={isBuyer ? '/buyer/market-intelligence' : '/farmer/market-intelligence'}
               className="px-4 py-2.5 rounded-xl bg-monsoon text-wheat font-body text-xs font-semibold hover:bg-monsoon/90 transition-colors flex items-center gap-1.5 shadow-sm"
             >
               <TrendingUp className="w-4 h-4 text-turmeric" />
@@ -243,14 +251,14 @@ export function MarketPricesComparisonView() {
               }}
               className="w-full px-3 py-2.5 rounded-xl bg-soil/5 border border-soil/15 font-body text-xs text-soil font-semibold focus:outline-none focus:border-turmeric cursor-pointer"
             >
-              {activeLots.length === 0 && (
+              {eligibleLots.length === 0 && (
                 <option value="" disabled>
-                  {lang === 'en' ? 'No active produce lots available' : 'कोई सक्रिय लॉट उपलब्ध नहीं'}
+                  {lang === 'en' ? 'No eligible lots available' : 'कोई पात्र लॉट उपलब्ध नहीं'}
                 </option>
               )}
-              {activeLots.map((l) => (
+              {eligibleLots.map((l) => (
                 <option key={l.id} value={l.id}>
-                  {l.id} — {l.crop} ({l.quantityQtl} {l.unit || 'qtl'}){l.farmerName ? ` • ${l.farmerName}` : ''}{l.location ? ` • ${l.location}` : ''}
+                  {l.id} — {l.crop} — {l.quantityQtl} {l.unit || 'Quintal'}{l.farmerName ? ` • ${l.farmerName}` : ''}{l.location ? ` • ${l.location}` : ''}
                 </option>
               ))}
               <option value="custom">{lang === 'en' ? 'Custom Commodity & Quantity' : 'कस्टम फसल व मात्रा'}</option>
@@ -434,7 +442,7 @@ export function MarketPricesComparisonView() {
             </div>
 
             <Link
-              to={`/farmer/logistics?lotId=${selectedLotId}&mandi=${encodeURIComponent(recommendation.recommendedMandi.mandiName)}`}
+              to={`/${isBuyer ? 'buyer' : 'farmer'}/logistics?lotId=${selectedLotId}&mandi=${encodeURIComponent(recommendation.recommendedMandi.mandiName)}`}
               className="px-4 py-2.5 rounded-xl bg-turmeric text-monsoon font-body text-xs font-bold hover:bg-turmeric/90 active:bg-turmeric/80 transition-all flex items-center gap-1.5 self-start sm:self-center shadow-sm flex-shrink-0"
             >
               <Truck className="w-3.5 h-3.5" />

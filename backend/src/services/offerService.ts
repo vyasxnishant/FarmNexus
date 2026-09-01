@@ -84,7 +84,7 @@ export class OfferService {
     return offer
   }
 
-  static async acceptOffer(offerId: string, farmerId: string): Promise<{ offer: Offer; transaction: Transaction }> {
+  static async acceptOffer(offerId: string, farmerId: string): Promise<{ offer: Offer; transaction: Transaction; lot: CropLot }> {
     const offer = inMemoryDb.offers.find(o => o.id === offerId)
     if (!offer) {
       throw new Error(`Offer not found with ID: ${offerId}`)
@@ -102,7 +102,7 @@ export class OfferService {
     if (offer.status === 'Accepted') {
       const existingTxn = inMemoryDb.transactions.find(t => t.offer_id === offer.id)
       if (existingTxn) {
-        return { offer, transaction: existingTxn }
+        return { offer, transaction: existingTxn, lot }
       }
       throw new Error('This offer has already been accepted.')
     }
@@ -138,7 +138,7 @@ export class OfferService {
     // 4. Create Transaction automatically on backend
     const transaction = await TransactionService.createTransactionFromOffer(offer, lot)
 
-    return { offer, transaction }
+    return { offer, transaction, lot }
   }
 
   static async rejectOffer(offerId: string, farmerId: string): Promise<Offer> {

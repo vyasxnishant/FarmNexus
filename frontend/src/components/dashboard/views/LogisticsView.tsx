@@ -36,31 +36,109 @@ import { AgriMapView, type MapMarkerPoint } from '../components/AgriMapView'
 
 export function LogisticsView() {
   const [searchParams] = useSearchParams()
-  const { lots, transactions, offers, lang } = useDashboard()
+  const { currentUser, lots, transactions, offers, lang } = useDashboard()
+
+  const isBuyer = currentUser?.user_type === 'BUYER'
+  const isFarmer = currentUser?.user_type === 'FARMER'
 
   const lotIdParam = searchParams.get('lotId')
   const dealIdParam = searchParams.get('dealId') || searchParams.get('transactionId')
   const mandiParam = searchParams.get('mandi')
 
-  // Find target transaction if dealId passed
-  const targetTxn = dealIdParam ? transactions.find(t => t.id === dealIdParam) : undefined
+  // 1. Filter eligible transactions strictly for the current user's role and accepted lifecycle
+  const eligibleTransactions = useMemo(() => {
+    return transactions.filter((t) => {
+      if (t.transactionStatus === 'Cancelled') {
+        return false
+      }
+      if (isBuyer) {
+        return t.buyerId === currentUser?.id
+      }
+      if (isFarmer) {
+        return t.farmerId === currentUser?.id
+      }
+      return true
+    })
+  }, [transactions, currentUser?.id, isBuyer, isFarmer])
+
+  // 2. Filter eligible lots available to the current user for logistics
+  const eligibleLots = useMemo(() => {
+    if (isFarmer) {
+      return lots.filter((l) => (l.farmerId === currentUser?.id || !l.farmerId) && l.status !== 'Sold' && l.status !== 'Expired' && l.quantityQtl > 0)
+    }
+    if (isBuyer) {
+      // For a buyer, show lots associated with buyer's active transactions
+      const buyerTxnLotIds = new Set(eligibleTransactions.map(t => t.lotId))
+      return lots.filter(l => buyerTxnLotIds.has(l.id))
+    }
+    return lots.filter((l) => l.status !== 'Sold' && l.status !== 'Expired' && l.quantityQtl > 0)
+  }, [lots, currentUser?.id, isFarmer, isBuyer, eligibleTransactions])
 
   // Selected Deal / Transaction ID (or active lot)
   const [selectedDealId, setSelectedDealId] = useState<string>(
-    targetTxn?.id || (transactions.length > 0 ? transactions[0].id : '')
+    dealIdParam || (eligibleTransactions.length > 0 ? eligibleTransactions[0].id : '')
   )
-
-  const activeTxn = transactions.find(t => t.id === selectedDealId) || targetTxn
-
-  // Selected Lot ID
   const [selectedLotId, setSelectedLotId] = useState<string>(
-    activeTxn?.lotId || lotIdParam || (lots.length > 0 ? lots[0].id : '')
+    lotIdParam || (eligibleLots.length > 0 ? eligibleLots[0].id : '')
   )
 
-  const activeLot = lots.find(l => l.id === selectedLotId) || (activeTxn ? lots.find(l => l.id === activeTxn.lotId) : lots[0])
+  // Auto-select first eligible trade deal or lot when loaded asynchronously
+  useEffect(() => {
+    if (dealIdParam) {
+      const matchTx = eligibleTransactions.find(t => t.id === dealIdParam)
+      if (matchTx) {
+        setSelectedDealId(matchTx.id)
+        setSelectedLotId(matchTx.lotId)
+        if (matchTx.mandiOrDeliveryLocation) {
+          setSelectedDestinationName(matchTx.mandiOrDeliveryLocation)
+        }
+        return
+      }
+    }
+    if (lotIdParam) {
+      const matchLot = eligibleLots.find(l => l.id === lotIdParam) || lots.find(l => l.id === lotIdParam)
+      if (matchLot) {
+        setSelectedLotId(matchLot.id)
+        const txMatch = eligibleTransactions.find(t => t.lotId === matchLot.id)
+        if (txMatch) {
+          setSelectedDealId(txMatch.id)
+          if (txMatch.mandiOrDeliveryLocation) {
+            setSelectedDestinationName(txMatch.mandiOrDeliveryLocation)
+          }
+        } else {
+          setSelectedDealId('')
+        }
+        return
+      }
+    }
+
+    const hasValidDeal = selectedDealId && eligibleTransactions.some(t => t.id === selectedDealId)
+    const hasValidLot = selectedLotId && eligibleLots.some(l => l.id === selectedLotId)
+
+    if (!hasValidDeal && !hasValidLot) {
+      if (eligibleTransactions.length > 0) {
+        const firstTx = eligibleTransactions[0]
+        setSelectedDealId(firstTx.id)
+        setSelectedLotId(firstTx.lotId)
+        if (firstTx.mandiOrDeliveryLocation) {
+          setSelectedDestinationName(firstTx.mandiOrDeliveryLocation)
+        }
+      } else if (eligibleLots.length > 0) {
+        const firstLot = eligibleLots[0]
+        setSelectedLotId(firstLot.id)
+        setSelectedDealId('')
+      } else {
+        setSelectedDealId('')
+        setSelectedLotId('')
+      }
+    }
+  }, [eligibleTransactions, eligibleLots, dealIdParam, lotIdParam, lots])
+
+  const activeTxn = eligibleTransactions.find(t => t.id === selectedDealId) || (dealIdParam ? eligibleTransactions.find(t => t.id === dealIdParam) : undefined)
+  const activeLot = lots.find(l => l.id === selectedLotId) || (activeTxn ? lots.find(l => l.id === activeTxn.lotId) : (eligibleLots.length > 0 ? eligibleLots[0] : lots[0]))
 
   // Traded deal or matching offer for this lot
-  const matchingTransaction = activeTxn || transactions.find(t => t.lotId === activeLot?.id)
+  const matchingTransaction = activeTxn || eligibleTransactions.find(t => t.lotId === activeLot?.id)
   const matchingOffer = offers.find(o => o.lotId === activeLot?.id && o.status === 'Accepted')
 
   // Exact Shipment Quantity (Quintals) — Never 0 when valid lot/deal data exists
@@ -115,19 +193,6 @@ export function LogisticsView() {
       setSelectedDestinationName(matchingTransaction.mandiOrDeliveryLocation)
     }
   }, [matchingTransaction?.id, matchingTransaction?.mandiOrDeliveryLocation])
-
-  useEffect(() => {
-    if (dealIdParam) {
-      const match = transactions.find(t => t.id === dealIdParam)
-      if (match) {
-        setSelectedDealId(match.id)
-        setSelectedLotId(match.lotId)
-        if (match.mandiOrDeliveryLocation) {
-          setSelectedDestinationName(match.mandiOrDeliveryLocation)
-        }
-      }
-    }
-  }, [dealIdParam, transactions])
 
   // Geocoding Origin and Destination Locations
   const originGeo = useMemo(() => geocodeLocation(originLocationName), [originLocationName])
@@ -221,14 +286,14 @@ export function LogisticsView() {
 
           <div className="flex items-center gap-2 self-start md:self-auto">
             <Link
-              to="/farmer/market-prices"
+              to={isBuyer ? '/buyer/market-prices' : '/farmer/market-prices'}
               className="px-4 py-2.5 rounded-xl bg-soil/5 text-soil font-body text-xs font-semibold border border-soil/15 hover:bg-soil/10 transition-colors flex items-center gap-1.5"
             >
               <TrendingUp className="w-4 h-4 text-turmeric" />
               <span>Compare Mandis</span>
             </Link>
             <Link
-              to="/farmer/storage"
+              to={isBuyer ? '/buyer/storage' : '/farmer/storage'}
               className="px-4 py-2.5 rounded-xl bg-turmeric text-monsoon font-body text-xs font-bold hover:bg-turmeric/90 transition-all shadow-sm"
             >
               Find Storage
@@ -262,7 +327,7 @@ export function LogisticsView() {
             </div>
 
             <Link
-              to={`/farmer/transactions/${matchingTransaction.id}`}
+              to={`/${isBuyer ? 'buyer' : 'farmer'}/transactions/${matchingTransaction.id}`}
               className="px-3.5 py-1.5 rounded-xl bg-wheat/10 text-wheat font-body text-xs font-semibold hover:bg-wheat/20 border border-wheat/20 transition-all flex items-center gap-1"
             >
               <span>View Trade Contract</span>
@@ -281,7 +346,7 @@ export function LogisticsView() {
               value={matchingTransaction ? matchingTransaction.id : selectedLotId}
               onChange={(e) => {
                 const val = e.target.value
-                const tx = transactions.find(t => t.id === val)
+                const tx = eligibleTransactions.find(t => t.id === val)
                 if (tx) {
                   setSelectedDealId(tx.id)
                   setSelectedLotId(tx.lotId)
@@ -289,27 +354,46 @@ export function LogisticsView() {
                     setSelectedDestinationName(tx.mandiOrDeliveryLocation)
                   }
                 } else {
-                  setSelectedLotId(val)
+                  const lot = eligibleLots.find(l => l.id === val) || lots.find(l => l.id === val)
+                  if (lot) {
+                    setSelectedLotId(lot.id)
+                    const txMatch = eligibleTransactions.find(t => t.lotId === lot.id)
+                    if (txMatch) {
+                      setSelectedDealId(txMatch.id)
+                      if (txMatch.mandiOrDeliveryLocation) {
+                        setSelectedDestinationName(txMatch.mandiOrDeliveryLocation)
+                      }
+                    } else {
+                      setSelectedDealId('')
+                    }
+                  }
                 }
               }}
               className="w-full px-3.5 py-2.5 rounded-xl bg-soil/5 border border-soil/15 font-body text-xs font-semibold text-soil focus:outline-none focus:border-turmeric cursor-pointer"
             >
-              {transactions.length > 0 && (
-                <optgroup label="Active Trade Contracts">
-                  {transactions.map((tx) => (
+              {eligibleTransactions.length === 0 && eligibleLots.length === 0 && (
+                <option value="" disabled>
+                  {lang === 'en' ? 'No eligible trade deals or lots available' : 'कोई पात्र व्यापार सौदे या लॉट उपलब्ध नहीं'}
+                </option>
+              )}
+              {eligibleTransactions.length > 0 && (
+                <optgroup label={lang === 'en' ? 'Active Trade Contracts' : 'सक्रिय व्यापार अनुबंध'}>
+                  {eligibleTransactions.map((tx) => (
                     <option key={tx.id} value={tx.id}>
-                      Contract {tx.id} — {tx.crop} ({tx.quantityQtl} {tx.unit}) &bull; ₹{tx.finalAmount.toLocaleString('en-IN')}
+                      {tx.id} — {tx.crop} — {tx.quantityQtl} {tx.unit || 'Qtl'}
                     </option>
                   ))}
                 </optgroup>
               )}
-              <optgroup label="Produce Lots">
-                {lots.map((l) => (
-                  <option key={l.id} value={l.id}>
-                    Lot {l.id} — {l.crop} ({l.quantityQtl > 0 ? l.quantityQtl : (l.initialQuantityQtl || 100)} {l.unit || 'Quintal'}) {l.status === 'Sold' ? '• Traded' : ''}
-                  </option>
-                ))}
-              </optgroup>
+              {eligibleLots.length > 0 && (
+                <optgroup label={lang === 'en' ? 'Produce Lots' : 'फसल लॉट'}>
+                  {eligibleLots.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.id} — {l.crop} — {l.quantityQtl > 0 ? l.quantityQtl : (l.initialQuantityQtl || 100)} {l.unit || 'Qtl'}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
             </select>
           </div>
 
