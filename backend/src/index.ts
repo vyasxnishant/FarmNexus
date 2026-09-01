@@ -9,7 +9,7 @@ const app = express()
 
 // Middleware
 app.use(cors({
-  origin: [config.corsOrigin, 'http://localhost:5173', 'http://127.0.0.1:5173'],
+  origin: true,
   credentials: true,
 }))
 app.use(express.json())
@@ -42,7 +42,7 @@ app.use(errorHandler)
 async function startServer() {
   await initDatabase()
 
-  app.listen(config.port, () => {
+  app.listen(config.port, '0.0.0.0', () => {
     console.log(`=========================================`)
     console.log(`🌾 FarmNexus Backend Data Layer Active`)
     console.log(`🚀 API Server running on port ${config.port}`)
