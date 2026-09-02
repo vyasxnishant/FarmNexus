@@ -4,13 +4,17 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
+    "start": "npm --prefix backend run start",
+    "start:backend": "npm --prefix backend run start",
+    "build": "npm --prefix backend run build",
+    "build:backend": "npm --prefix backend run build",
+    "build:frontend": "npm --prefix frontend run build",
+    "build:all": "npm --prefix frontend run build && npm --prefix backend run build",
     "dev": "npm --prefix frontend run dev",
     "dev:frontend": "npm --prefix frontend run dev",
     "dev:backend": "npm --prefix backend run dev",
-    "build": "npm --prefix frontend run build && npm --prefix backend run build",
-    "build:frontend": "npm --prefix frontend run build",
-    "build:backend": "npm --prefix backend run build",
     "db:seed": "npm --prefix backend run db:seed",
-    "db:migrate": "npm --prefix backend run db:migrate"
+    "db:migrate": "npm --prefix backend run db:migrate",
+    "postinstall": "npm --prefix backend install"
   }
 }
