@@ -53,6 +53,7 @@ export function isEscrowPayable(txn?: Partial<FarmTransaction> | null): boolean 
 
 /**
  * Checks if a transaction has reached final settlement and payout.
+ * NOTE: 'delivered' is NOT settled; settlement occurs after gate assay when escrow payout is released.
  */
 export function isDealSettled(txn?: Partial<FarmTransaction> | null): boolean {
   if (!txn) return false
@@ -64,7 +65,6 @@ export function isDealSettled(txn?: Partial<FarmTransaction> | null): boolean {
     tStatus === 'completed' ||
     tStatus === 'settled' ||
     tStatus === 'fully_settled' ||
-    tStatus === 'delivered' ||
     pStatus === 'settled' ||
     pStatus === 'disbursed' ||
     pStatus === 'payout_completed'
@@ -72,7 +72,7 @@ export function isDealSettled(txn?: Partial<FarmTransaction> | null): boolean {
 }
 
 /**
- * Checks if escrow funds are verified and locked.
+ * Checks if escrow funds are verified and locked in the vault.
  */
 export function isEscrowFunded(txn?: Partial<FarmTransaction> | null): boolean {
   if (!txn) return false
@@ -92,6 +92,18 @@ export function isEscrowFunded(txn?: Partial<FarmTransaction> | null): boolean {
 }
 
 /**
+ * Checks if the deal is currently waiting for the farmer to dispatch produce.
+ */
+export function isAwaitingFarmerDispatch(txn?: Partial<FarmTransaction> | null): boolean {
+  if (!txn) return false
+  const pStatus = (txn.paymentStatus || '').toLowerCase().trim()
+  const tStatus = (txn.transactionStatus || '').toLowerCase().trim()
+  const funded = pStatus === 'payment successful' || pStatus === 'escrow funded' || pStatus === 'escrow_funded'
+  const awaitingDispatch = tStatus === 'payment completed' || tStatus === 'awaiting farmer dispatch' || tStatus === 'awaiting_farmer_dispatch'
+  return funded && awaitingDispatch
+}
+
+/**
  * Checks if produce is currently in transit.
  */
 export function isInTransit(txn?: Partial<FarmTransaction> | null): boolean {
@@ -101,13 +113,23 @@ export function isInTransit(txn?: Partial<FarmTransaction> | null): boolean {
 }
 
 /**
+ * Checks if produce has been delivered to terminal for gate assay.
+ */
+export function isDelivered(txn?: Partial<FarmTransaction> | null): boolean {
+  if (!txn) return false
+  const tStatus = (txn.transactionStatus || '').toLowerCase().trim()
+  return tStatus === 'delivered'
+}
+
+/**
  * Determines the role-specific dynamic Action Desk properties based on single source of truth.
  */
 export function getTransactionActionDeskInfo(txn: FarmTransaction, isBuyerMode: boolean) {
   const settled = isDealSettled(txn)
   const payable = isEscrowPayable(txn)
   const inTransit = isInTransit(txn)
-  const escrowLocked = isEscrowFunded(txn) && txn.transactionStatus === 'Payment Completed'
+  const delivered = isDelivered(txn)
+  const awaitingDispatch = isAwaitingFarmerDispatch(txn)
 
   let deskLabel = isBuyerMode ? 'Buyer Action Desk' : 'Farmer Action Desk'
   let headerSubtitle = ''
@@ -115,12 +137,15 @@ export function getTransactionActionDeskInfo(txn: FarmTransaction, isBuyerMode: 
   if (settled) {
     deskLabel = isBuyerMode ? 'Buyer Desk — Deal Fully Settled' : 'Farmer Payout Desk — Payout Settled'
     headerSubtitle = isBuyerMode ? 'Contract Reconciliation Completed' : 'Bank Payout Disbursed & Settled'
+  } else if (delivered) {
+    deskLabel = isBuyerMode ? 'Buyer Desk — Delivery Verified & Payout Release' : 'Farmer Desk — Delivery Assay Verified'
+    headerSubtitle = isBuyerMode ? 'Gate Assay Verified • Release Escrow' : 'Produce Received at Terminal • Awaiting Escrow Payout'
   } else if (inTransit) {
     deskLabel = isBuyerMode ? 'Buyer Desk — Transit Tracking & Gate Assay' : 'Farmer Desk — Shipment En Route'
     headerSubtitle = isBuyerMode ? 'Consignment In Transit to Terminal' : 'Produce Dispatched from Godown'
-  } else if (escrowLocked) {
+  } else if (awaitingDispatch) {
     deskLabel = isBuyerMode ? 'Buyer Desk — Escrow Capital Locked' : 'Farmer Dispatch Desk — Escrow Funded'
-    headerSubtitle = isBuyerMode ? 'Funds Secured in Escrow Vault' : 'Buyer Funds Verified & Locked'
+    headerSubtitle = isBuyerMode ? 'Funds Secured in Escrow Vault' : 'Buyer Funds Verified & Locked — Ready to Dispatch'
   } else if (payable) {
     deskLabel = isBuyerMode ? 'Buyer Action Desk — Escrow Deposit Required' : 'Farmer Desk — Awaiting Escrow Deposit'
     headerSubtitle = isBuyerMode ? 'Lock Capital to Begin Fulfillment' : 'Awaiting Buyer Payment Confirmation'
@@ -132,10 +157,13 @@ export function getTransactionActionDeskInfo(txn: FarmTransaction, isBuyerMode: 
     isSettled: settled,
     isPayable: payable,
     isInTransit: inTransit,
-    isEscrowLocked: escrowLocked,
+    isDelivered: delivered,
+    isEscrowLocked: awaitingDispatch,
+    isAwaitingDispatch: awaitingDispatch,
     allowDeposit: isBuyerMode && payable,
-    allowDispatch: !isBuyerMode && escrowLocked,
+    allowDispatch: !isBuyerMode && awaitingDispatch,
     allowGateVerification: isBuyerMode && inTransit,
+    allowReleasePayout: isBuyerMode && delivered,
   }
 }
 

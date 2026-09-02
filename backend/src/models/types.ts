@@ -297,6 +297,9 @@ export interface Transaction {
     paid_at?: string
     escrow_ref?: string
   }
+  dispatched_at?: string
+  delivered_at?: string
+  settled_at?: string
   created_at: string
   updated_at: string
 }

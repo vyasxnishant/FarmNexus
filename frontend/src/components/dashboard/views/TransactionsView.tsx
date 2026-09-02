@@ -24,7 +24,7 @@ import {
   type TransactionLifecycleStatus,
   type TransactionPaymentStatus
 } from '../../../context/DashboardContext'
-import { isEscrowPayable, isDealSettled, getEscrowStatus } from '../../../utils/transactionUtils'
+import { isEscrowPayable, isDealSettled, getEscrowStatus, isAwaitingFarmerDispatch, isInTransit, isDelivered } from '../../../utils/transactionUtils'
 import { DemoDataBadge } from '../components/DemoDataBadge'
 
 interface TransactionsViewProps {
@@ -314,6 +314,43 @@ export function TransactionsView({ isBuyer = false }: TransactionsViewProps) {
                         className="px-4 py-2 rounded-xl bg-turmeric text-monsoon font-body text-xs font-bold hover:bg-turmeric/90 transition-all shadow-sm"
                       >
                         Deposit to Escrow
+                      </Link>
+                    )}
+
+                    {!isBuyerMode && isAwaitingFarmerDispatch(txn) && (
+                      <Link
+                        to={`${basePath}/${txn.id}`}
+                        className="px-4 py-2 rounded-xl bg-datateal text-monsoon font-body text-xs font-bold hover:bg-datateal/90 transition-all shadow-sm flex items-center gap-1.5"
+                      >
+                        <Truck className="w-3.5 h-3.5" />
+                        <span>Dispatch Produce</span>
+                      </Link>
+                    )}
+
+                    {isBuyerMode && isAwaitingFarmerDispatch(txn) && (
+                      <span className="px-3 py-1.5 rounded-xl bg-amber-500/15 text-amber-900 border border-amber-400/50 font-body text-xs font-semibold flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-amber-700" />
+                        <span>Awaiting Farmer Dispatch</span>
+                      </span>
+                    )}
+
+                    {isInTransit(txn) && (
+                      <Link
+                        to={`/${isBuyerMode ? 'buyer' : 'farmer'}/logistics?dealId=${txn.id}`}
+                        className="px-3.5 py-1.5 rounded-xl bg-monsoon text-wheat font-body text-xs font-semibold hover:bg-monsoon/90 transition-all flex items-center gap-1.5"
+                      >
+                        <Truck className="w-3.5 h-3.5 text-turmeric" />
+                        <span>Track Shipment</span>
+                      </Link>
+                    )}
+
+                    {isBuyerMode && isDelivered(txn) && (
+                      <Link
+                        to={`${basePath}/${txn.id}`}
+                        className="px-4 py-2 rounded-xl bg-turmeric text-monsoon font-body text-xs font-bold hover:bg-turmeric/90 transition-all shadow-sm flex items-center gap-1.5"
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5" />
+                        <span>Release Escrow</span>
                       </Link>
                     )}
 

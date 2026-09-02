@@ -33,11 +33,17 @@ export function TransactionDetailsView() {
   const navigate = useNavigate()
   const location = useLocation()
   const [searchParams] = useSearchParams()
-  const isBuyerMode = location.pathname.startsWith('/buyer')
+  const isBuyerPath = location.pathname.startsWith('/buyer')
 
   const { getTransactionById, updateTransactionPayment, advanceTransactionLifecycle, currentUser, lang } = useDashboard()
   const txn = transactionId ? getTransactionById(transactionId) : undefined
   const { isLoaded: isRzpLoaded, loadRazorpayScript } = useRazorpay()
+
+  // Determine user role relative to this specific transaction:
+  const isFarmerUser = currentUser?.id === txn?.farmerId || currentUser?.user_type === 'FARMER'
+  const isBuyerUser = currentUser?.id === txn?.buyerId || currentUser?.user_type === 'BUYER'
+  const isBuyerMode = isBuyerUser && !isFarmerUser
+  const isSellerMode = isFarmerUser || (!isBuyerUser && !isBuyerPath)
 
   // Pay Modal State for Buyer
   const actionParam = searchParams.get('action')
@@ -227,20 +233,52 @@ export function TransactionDetailsView() {
     }
   }
 
-  const handleDispatchShipment = () => {
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [actionSuccessMessage, setActionSuccessMessage] = useState<string | null>(null)
+
+  const handleDispatchShipment = async () => {
+    if (!txn) return
     setIsActionLoading(true)
-    setTimeout(() => {
-      advanceTransactionLifecycle(txn.id, 'In Transit')
+    setActionError(null)
+    setActionSuccessMessage(null)
+    try {
+      await advanceTransactionLifecycle(txn.id, 'In Transit')
+      setActionSuccessMessage('Produce marked as Dispatched & In Transit! Shipment tracking is now active.')
+    } catch (err: any) {
+      setActionError(err.response?.data?.message || err.message || 'Failed to dispatch produce.')
+    } finally {
       setIsActionLoading(false)
-    }, 600)
+    }
   }
 
-  const handleConfirmDelivery = () => {
+  const handleVerifyGateAssay = async () => {
+    if (!txn) return
     setIsActionLoading(true)
-    setTimeout(() => {
-      advanceTransactionLifecycle(txn.id, 'Completed')
+    setActionError(null)
+    setActionSuccessMessage(null)
+    try {
+      await advanceTransactionLifecycle(txn.id, 'Delivered')
+      setActionSuccessMessage('Terminal arrival and gate assay verified! Escrow payout can now be released.')
+    } catch (err: any) {
+      setActionError(err.response?.data?.message || err.message || 'Failed to verify gate arrival.')
+    } finally {
       setIsActionLoading(false)
-    }, 600)
+    }
+  }
+
+  const handleReleaseEscrowPayout = async () => {
+    if (!txn) return
+    setIsActionLoading(true)
+    setActionError(null)
+    setActionSuccessMessage(null)
+    try {
+      await advanceTransactionLifecycle(txn.id, 'Completed')
+      setActionSuccessMessage('Escrow payout released to farmer! Transaction contract is now fully settled.')
+    } catch (err: any) {
+      setActionError(err.response?.data?.message || err.message || 'Failed to release escrow payout.')
+    } finally {
+      setIsActionLoading(false)
+    }
   }
 
   const backLink = isBuyerMode ? '/buyer/transactions' : '/farmer/transactions'
@@ -516,17 +554,31 @@ export function TransactionDetailsView() {
                   </div>
                 )}
 
+                {/* Error & Success Feedback Banners */}
+                {actionError && (
+                  <div className="p-3.5 bg-red-950/80 border border-red-500/50 rounded-2xl text-xs text-red-200 flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+                    <span>{actionError}</span>
+                  </div>
+                )}
+                {actionSuccessMessage && (
+                  <div className="p-3.5 bg-datateal/20 border border-datateal/50 rounded-2xl text-xs text-wheat flex items-start gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-datateal flex-shrink-0 mt-0.5" />
+                    <span>{actionSuccessMessage}</span>
+                  </div>
+                )}
+
                 {/* 2. Farmer Dispatch Action (Escrow Funded) */}
                 {deskInfo.allowDispatch && (
                   <div className="space-y-4 p-4 rounded-2xl bg-wheat/10 border border-datateal/40">
                     <div className="flex items-center gap-2">
                       <Truck className="w-5 h-5 text-datateal" />
                       <h4 className="font-serif text-lg font-bold text-wheat">
-                        Escrow Funded — Ready for Dispatch
+                        Escrow Capital Locked — Ready for Dispatch
                       </h4>
                     </div>
                     <p className="text-xs font-body text-wheat/80 leading-relaxed">
-                      Buyer has deposited ₹{txn.finalAmount.toLocaleString('en-IN')} in escrow. Dispatch harvest from farm-gate to begin transit tracking.
+                      Buyer has deposited ₹{txn.finalAmount.toLocaleString('en-IN')} in escrow vault. Capital is 100% secured and guaranteed. You can now dispatch the produce harvest from your farm-gate.
                     </p>
                     <button
                       type="button"
@@ -535,7 +587,7 @@ export function TransactionDetailsView() {
                       className="w-full py-3 bg-datateal text-monsoon font-body text-xs font-bold rounded-xl hover:bg-datateal/90 transition-all shadow-md cursor-pointer flex items-center justify-center gap-2"
                     >
                       {isActionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Truck className="w-4 h-4" />}
-                      <span>Confirm Dispatch & Handover</span>
+                      <span>Dispatch Produce</span>
                     </button>
                   </div>
                 )}
@@ -559,37 +611,61 @@ export function TransactionDetailsView() {
                   </div>
                 )}
 
-                {/* 3. Buyer Delivery Confirmation Action */}
+                {/* 3. Buyer Gate Assay Verification Action */}
                 {deskInfo.allowGateVerification && (
                   <div className="space-y-4 p-4 rounded-2xl bg-wheat/10 border border-datateal/40">
                     <div className="flex items-center gap-2">
                       <CheckCircle2 className="w-5 h-5 text-datateal" />
                       <h4 className="font-serif text-lg font-bold text-wheat">
-                        Verify Gate Arrival & Release Payout
+                        Delivery & Gate Assay Check
                       </h4>
                     </div>
                     <p className="text-xs font-body text-wheat/80 leading-relaxed">
-                      Produce has arrived at terminal. Confirming gate assay will release ₹{txn.produceValue.toLocaleString('en-IN')} to farmer linked SBI account.
+                      Produce has been dispatched by farmer and is en route. Confirm physical delivery at terminal and verify quality assay check.
                     </p>
                     <button
                       type="button"
                       disabled={isActionLoading}
-                      onClick={handleConfirmDelivery}
+                      onClick={handleVerifyGateAssay}
                       className="w-full py-3 bg-datateal text-monsoon font-body text-xs font-bold rounded-xl hover:bg-datateal/90 transition-all shadow-md cursor-pointer flex items-center justify-center gap-2"
                     >
                       {isActionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                      <span>Verify Gate Receipt & Release Funds</span>
+                      <span>Verify Gate Arrival & Quality Assay</span>
                     </button>
                   </div>
                 )}
 
-                {/* 3b. Farmer Produce In Transit Status */}
+                {/* 3b. Buyer Release Escrow Settlement Action (After Delivery/Gate Assay) */}
+                {deskInfo.allowReleasePayout && (
+                  <div className="space-y-4 p-4 rounded-2xl bg-wheat/10 border border-turmeric/40">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="w-5 h-5 text-turmeric" />
+                      <h4 className="font-serif text-lg font-bold text-wheat">
+                        Gate Assay Verified — Release Escrow Payout
+                      </h4>
+                    </div>
+                    <p className="text-xs font-body text-wheat/80 leading-relaxed">
+                      Produce arrived at terminal and passed inspection. Authorize release of ₹{txn.produceValue.toLocaleString('en-IN')} escrow payout to {txn.farmerName}'s bank account.
+                    </p>
+                    <button
+                      type="button"
+                      disabled={isActionLoading}
+                      onClick={handleReleaseEscrowPayout}
+                      className="w-full py-3 bg-turmeric text-monsoon font-body text-xs font-bold rounded-xl hover:bg-turmeric/90 transition-all shadow-md cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      {isActionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+                      <span>Release Escrow Settlement to Farmer</span>
+                    </button>
+                  </div>
+                )}
+
+                {/* 3c. Farmer Produce In Transit Status */}
                 {!isBuyerMode && deskInfo.isInTransit && (
                   <div className="space-y-4 p-4 rounded-2xl bg-wheat/10 border border-turmeric/30">
                     <div className="flex items-center gap-2">
                       <Truck className="w-5 h-5 text-turmeric" />
                       <h4 className="font-serif text-lg font-bold text-wheat">
-                        Produce In Transit
+                        Produce Dispatched & In Transit
                       </h4>
                     </div>
                     <p className="text-xs font-body text-wheat/80 leading-relaxed">
@@ -597,7 +673,26 @@ export function TransactionDetailsView() {
                     </p>
                     <div className="p-2.5 bg-monsoon/60 rounded-xl border border-wheat/10 text-[11px] font-mono text-wheat/70 flex items-center gap-2">
                       <Clock className="w-3.5 h-3.5 text-turmeric" />
-                      <span>Status: En Route to Destination</span>
+                      <span>Status: In Transit / Dispatched</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* 3d. Farmer Delivered / Waiting for Release */}
+                {!isBuyerMode && deskInfo.isDelivered && (
+                  <div className="space-y-4 p-4 rounded-2xl bg-wheat/10 border border-datateal/40">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-5 h-5 text-datateal" />
+                      <h4 className="font-serif text-lg font-bold text-wheat">
+                        Delivery & Gate Assay Verified
+                      </h4>
+                    </div>
+                    <p className="text-xs font-body text-wheat/80 leading-relaxed">
+                      Consignment arrived at buyer terminal and passed assay verification. Escrow payout of ₹{txn.produceValue.toLocaleString('en-IN')} is being disbursed to your linked bank account.
+                    </p>
+                    <div className="p-2.5 bg-monsoon/60 rounded-xl border border-wheat/10 text-[11px] font-mono text-wheat/70 flex items-center gap-2">
+                      <Clock className="w-3.5 h-3.5 text-datateal" />
+                      <span>Status: Awaiting Escrow Settlement Release</span>
                     </div>
                   </div>
                 )}

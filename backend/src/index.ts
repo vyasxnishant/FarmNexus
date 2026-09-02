@@ -17,23 +17,38 @@ app.use(express.json())
 // API Routes
 app.use('/api', apiRoutes)
 
-// Root health check
-app.get('/', (req, res) => {
+import path from 'path'
+import { fileURLToPath } from 'url'
+import fs from 'fs'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+
+// Static Frontend files from production build
+const frontendDist = path.resolve(__dirname, '../../frontend/dist')
+if (fs.existsSync(frontendDist)) {
+  app.use(express.static(frontendDist))
+}
+
+// Root API info check
+app.get('/api/info', (req, res) => {
   res.json({
     name: 'FarmNexus Agri-Data API',
     version: '1.0.0',
     description: 'Government-sourced agricultural mandi prices and market intelligence backend',
     documentation: '/api/health',
-    endpoints: [
-      'GET /api/market-prices',
-      'GET /api/market-prices/latest',
-      'GET /api/market-prices/trends',
-      'GET /api/markets',
-      'GET /api/commodities',
-      'GET /api/market-arrivals',
-    ],
   })
 })
+
+// SPA Fallback for client-side routing
+if (fs.existsSync(frontendDist)) {
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api')) {
+      return next()
+    }
+    res.sendFile(path.join(frontendDist, 'index.html'))
+  })
+}
 
 // Error Handling
 app.use(errorHandler)

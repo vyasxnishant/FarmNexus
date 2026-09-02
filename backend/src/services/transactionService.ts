@@ -98,32 +98,94 @@ export class TransactionService {
     const now = new Date()
     const timeString = `${now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
 
-    txn.transaction_status = nextStage
-    txn.updated_at = now.toISOString()
-
-    // Update timeline stages
     if (nextStage === 'In Transit') {
+      // 1. Validate Escrow is funded
+      if (txn.payment_status !== 'Payment Successful') {
+        throw new Error(`Cannot dispatch produce: Escrow capital is not funded yet (current payment status: ${txn.payment_status}).`)
+      }
+
+      // 2. Validate Caller is Seller/Farmer or Admin
+      if (userRole !== 'ADMIN' && txn.farmer_id !== userId) {
+        throw new Error('Unauthorized: Only the seller/farmer who owns this produce lot can dispatch the shipment.')
+      }
+
+      // 3. Prevent double dispatch
+      if (txn.transaction_status === 'In Transit' || txn.transaction_status === 'Delivered' || txn.transaction_status === 'Completed') {
+        throw new Error(`Produce has already been dispatched (current status: ${txn.transaction_status}).`)
+      }
+
+      txn.transaction_status = 'In Transit'
+      txn.dispatched_at = now.toISOString()
+      txn.updated_at = now.toISOString()
+
       const stageObj = txn.timeline.find(s => s.stage === 'in_transit')
       if (stageObj) {
         stageObj.completed = true
         stageObj.timestamp = timeString
+        stageObj.description = `Produce dispatched from farm-gate by ${txn.farmer_name}. Carrier in transit to delivery terminal.`
       }
-    } else if (nextStage === 'Delivered') {
+
+      return txn
+    }
+
+    if (nextStage === 'Delivered') {
+      // 1. Validate current status is In Transit
+      if (txn.transaction_status !== 'In Transit') {
+        throw new Error(`Cannot record terminal delivery: Shipment must be 'In Transit' first (current status: ${txn.transaction_status}).`)
+      }
+
+      // 2. Validate Caller is Buyer or Admin
+      if (userRole !== 'ADMIN' && txn.buyer_id !== userId) {
+        throw new Error('Unauthorized: Only the buyer can verify terminal delivery and gate assay.')
+      }
+
+      txn.transaction_status = 'Delivered'
+      txn.delivered_at = now.toISOString()
+      txn.updated_at = now.toISOString()
+
       const stageObj = txn.timeline.find(s => s.stage === 'delivered')
       if (stageObj) {
         stageObj.completed = true
         stageObj.timestamp = timeString
+        stageObj.description = `Produce arrived at ${txn.mandi_or_delivery_location}. Gate assay inspection verified.`
       }
-    } else if (nextStage === 'Completed') {
+
+      return txn
+    }
+
+    if (nextStage === 'Completed') {
+      // 1. Validate current status is Delivered or In Transit
+      if (txn.transaction_status !== 'Delivered' && txn.transaction_status !== 'In Transit') {
+        throw new Error(`Cannot complete escrow settlement: Produce must be delivered and verified first (current status: ${txn.transaction_status}).`)
+      }
+
+      // 2. Validate Caller is Buyer, Farmer, or Admin
+      if (userRole !== 'ADMIN' && txn.buyer_id !== userId && txn.farmer_id !== userId) {
+        throw new Error('Unauthorized: Only the buyer, seller, or platform administrator can authorize escrow settlement release.')
+      }
+
+      txn.transaction_status = 'Completed'
+      txn.settled_at = now.toISOString()
+      txn.updated_at = now.toISOString()
+
+      // Ensure all prior timeline events are completed
       txn.timeline.forEach(s => {
         if (!s.completed) {
           s.completed = true
           s.timestamp = timeString
         }
       })
-      txn.payment_status = 'Payment Successful'
+
+      const completedStage = txn.timeline.find(s => s.stage === 'completed')
+      if (completedStage) {
+        completedStage.description = `₹${txn.produce_value.toLocaleString('en-IN')} escrow payout disbursed to ${txn.farmer_name} linked bank account.`
+      }
+
+      return txn
     }
 
+    txn.transaction_status = nextStage
+    txn.updated_at = now.toISOString()
     return txn
   }
 }

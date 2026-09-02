@@ -14,6 +14,7 @@ router.post('/create', authenticateToken, PaymentController.createPaymentOrder)
 // Cryptographic signature verification - requires authenticated Buyer
 router.post('/verify', authenticateToken, PaymentController.verifyPayment)
 router.post('/process-sandbox', authenticateToken, PaymentController.processSandboxPayment)
+router.post('/sandbox-process', authenticateToken, PaymentController.processSandboxPayment)
 router.post('/sandbox', authenticateToken, PaymentController.processSandboxPayment)
 router.post('/sandbox-pay', authenticateToken, PaymentController.processSandboxPayment)
 

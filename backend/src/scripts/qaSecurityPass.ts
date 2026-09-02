@@ -188,13 +188,20 @@ async function runQAPass() {
     })
     record('Payment Flow', 'Verify Payment & Fund Escrow', verifyRes.data.data.verified, `Payment Status: ${verifyRes.data.data.paymentStatus}`)
 
-    // 4.6 Advance Transaction Stages: In Transit -> Completed
+    // 4.6 Advance Transaction Stages: Farmer Dispatches -> Buyer Verifies Delivery -> Escrow Settlement
     const transitRes = await axios.post(`${API_BASE}/transactions/${createdTxnId}/advance-stage`, {
       nextStage: 'In Transit',
     }, {
+      headers: { Authorization: `Bearer ${farmerToken}` },
+    })
+    record('Logistics Flow', 'Advance to In Transit (Farmer Dispatches)', transitRes.data.data.transaction_status === 'In Transit', `Status: ${transitRes.data.data.transaction_status}`)
+
+    const deliverRes = await axios.post(`${API_BASE}/transactions/${createdTxnId}/advance-stage`, {
+      nextStage: 'Delivered',
+    }, {
       headers: { Authorization: `Bearer ${buyerToken}` },
     })
-    record('Logistics Flow', 'Advance to In Transit', transitRes.data.data.transaction_status === 'In Transit', `Status: ${transitRes.data.data.transaction_status}`)
+    record('Logistics Flow', 'Advance to Delivered (Buyer Gate Check)', deliverRes.data.data.transaction_status === 'Delivered', `Status: ${deliverRes.data.data.transaction_status}`)
 
     const completeRes = await axios.post(`${API_BASE}/transactions/${createdTxnId}/advance-stage`, {
       nextStage: 'Completed',
