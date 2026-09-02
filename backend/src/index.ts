@@ -12,10 +12,32 @@ app.use(cors({
   origin: true,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'X-Api-Version', 'X-CSRF-Token'],
 }))
 app.options('*', cors())
+
+// Explicit CORS headers and preflight handler for Vercel Serverless
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*')
+  res.header('Access-Control-Allow-Credentials', 'true')
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS')
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, X-Api-Version, X-CSRF-Token')
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204)
+  }
+  next()
+})
+
 app.use(express.json())
+
+// URL normalization for Vercel Serverless rewrites
+app.use((req, res, next) => {
+  const original = (req.originalUrl || req.url || '').split('?')[0]
+  if ((req.url === '/' || req.url === '/api' || req.url === '/api/') && original && original !== '/' && original !== '/api') {
+    req.url = req.originalUrl
+  }
+  next()
+})
 
 // Lazy DB initialization singleton for Vercel Serverless environments
 let dbInitPromise: Promise<boolean> | null = null
@@ -36,7 +58,7 @@ app.use(async (req, res, next) => {
 })
 
 // Root API info check
-app.get(['/', '/api/info', '/info'], (req, res) => {
+app.get(['/', '/api', '/api/info', '/info'], (req, res) => {
   res.json({
     name: 'FarmNexus Agri-Data API',
     version: '1.0.0',
