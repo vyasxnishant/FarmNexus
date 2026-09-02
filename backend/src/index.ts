@@ -11,11 +11,44 @@ const app = express()
 app.use(cors({
   origin: true,
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
 }))
+app.options('*', cors())
 app.use(express.json())
 
-// API Routes
+// Lazy DB initialization singleton for Vercel Serverless environments
+let dbInitPromise: Promise<boolean> | null = null
+
+export function ensureDatabaseInitialized(): Promise<boolean> {
+  if (!dbInitPromise) {
+    dbInitPromise = initDatabase().catch((err) => {
+      console.warn('[DB] Serverless database init warning:', err)
+      return false
+    })
+  }
+  return dbInitPromise
+}
+
+app.use(async (req, res, next) => {
+  await ensureDatabaseInitialized()
+  next()
+})
+
+// Root API info check
+app.get(['/', '/api/info', '/info'], (req, res) => {
+  res.json({
+    name: 'FarmNexus Agri-Data API',
+    version: '1.0.0',
+    status: 'online',
+    description: 'Government-sourced agricultural mandi prices and market intelligence backend',
+    documentation: '/api/health',
+  })
+})
+
+// API Routes (support both /api/* and direct routes)
 app.use('/api', apiRoutes)
+app.use('/', apiRoutes)
 
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -24,21 +57,11 @@ import fs from 'fs'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-// Static Frontend files from production build
+// Static Frontend files from production build (when running in unified mode)
 const frontendDist = path.resolve(__dirname, '../../frontend/dist')
 if (fs.existsSync(frontendDist)) {
   app.use(express.static(frontendDist))
 }
-
-// Root API info check
-app.get('/api/info', (req, res) => {
-  res.json({
-    name: 'FarmNexus Agri-Data API',
-    version: '1.0.0',
-    description: 'Government-sourced agricultural mandi prices and market intelligence backend',
-    documentation: '/api/health',
-  })
-})
 
 // SPA Fallback for client-side routing
 if (fs.existsSync(frontendDist)) {
@@ -53,7 +76,7 @@ if (fs.existsSync(frontendDist)) {
 // Error Handling
 app.use(errorHandler)
 
-// Start Server
+// Start Server (Standalone / Local / Docker)
 async function startServer() {
   await initDatabase()
 
@@ -67,5 +90,12 @@ async function startServer() {
   })
 }
 
-startServer()
+// Only start standalone server if NOT in a serverless environment (e.g. Vercel)
+if (!process.env.VERCEL && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
+  startServer()
+}
+
+export default app
+export { app }
+
 
