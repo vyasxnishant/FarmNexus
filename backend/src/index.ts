@@ -72,28 +72,7 @@ app.get(['/', '/api', '/api/info', '/info'], (req, res) => {
 app.use('/api', apiRoutes)
 app.use('/', apiRoutes)
 
-import path from 'path'
-import { fileURLToPath } from 'url'
-import fs from 'fs'
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
-
-// Static Frontend files from production build (when running in unified mode)
-const frontendDist = path.resolve(__dirname, '../../frontend/dist')
-if (fs.existsSync(frontendDist)) {
-  app.use(express.static(frontendDist))
-}
-
-// SPA Fallback for client-side routing
-if (fs.existsSync(frontendDist)) {
-  app.get('*', (req, res, next) => {
-    if (req.path.startsWith('/api')) {
-      return next()
-    }
-    res.sendFile(path.join(frontendDist, 'index.html'))
-  })
-}
 
 // Error Handling
 app.use(errorHandler)
