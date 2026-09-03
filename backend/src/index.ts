@@ -113,10 +113,13 @@ async function startServer() {
 }
 
 // Only start standalone server if NOT in a serverless environment (e.g. Vercel)
-if (!process.env.VERCEL && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
+if (
+  !process.env.VERCEL &&
+  !process.env.NETLIFY &&
+  !process.env.AWS_LAMBDA_FUNCTION_NAME
+) {
   startServer()
 }
-
 export default app
 export { app }
 
